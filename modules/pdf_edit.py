@@ -6,6 +6,8 @@ from statistics import median
 from modules.spacy_api import *
 from collections import defaultdict
 import numpy as np
+import string
+import copy
 
 async def extract_text_coordinates_blocks(pdf_data):
     """
@@ -135,10 +137,6 @@ def check_first_num_tokens(input_list, keywords, num=2):
                 return True
     return False
 
-import string
-import copy
-import numpy as np
-import math
 
 def remove_special_chars(text):
     return ''.join(char for char in text if char not in string.punctuation and char not in string.digits)
@@ -161,7 +159,7 @@ def calculate_percentile_scores(data) -> list:
     item_75_percentile = np.percentile(data, 75)
     item_25_percentile = np.percentile(data, 25)
     iqr = item_75_percentile - item_25_percentile
-    res = [(value - item_median) / iqr if iqr != 0 else 0 for value in data]
+    res = [abs((value - item_median) / iqr) if iqr != 0 else 0 for value in data]
     return res
 
 
@@ -174,19 +172,26 @@ def calculate_marge_scores(scores):
 
 def calculate_histogram_bins(marge_scores):
     """
-    マージスコアのヒストグラムを計算し、最大のビンを返します。
+    マージスコアのヒストグラムを計算し、最大ビンの範囲を返します。
     """
+    # スタージェスの公式によるビン数の計算
     n = len(marge_scores)
     num_bins_sturges = math.ceil(math.log2(n) + 1)
 
+    # Freedman-Diaconisの規則によるビン数の計算
     q75, q25 = np.percentile(marge_scores, [75, 25])
     iqr = q75 - q25
     bin_width_fd = 2 * iqr / n ** (1/3)
     bin_range = max(marge_scores) - min(marge_scores)
     num_bins_fd = math.ceil(bin_range / bin_width_fd)
 
+    # 2つのビン数のうち小さい方を採用
     num_bins = min(num_bins_sturges, num_bins_fd)
     histogram, bin_edges = np.histogram(marge_scores, bins=num_bins)
+
+    print("[Histogram]")
+    print(f"{num_bins=}")
+    print(f"{histogram=}")
     max_index = np.argmax(histogram)
 
     return bin_edges[max_index], bin_edges[max_index + 1]
