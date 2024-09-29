@@ -7,7 +7,7 @@ python-multipart
 bcrypt
 PyMuPDF
 spacy==3.7.4
-psycopg2
+psycopg2-binary
 aiohttp
 b2sdk
 pycryptodome
