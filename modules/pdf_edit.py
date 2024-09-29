@@ -32,7 +32,7 @@ async def extract_text_coordinates_blocks(pdf_data):
         # 各テキストブロックからテキスト、画像と座標を抽出
         for b in blocks:
             x0, y0, x1, y1, content_text, block_no, block_type = b[:7]
-            
+
             # フォントサイズ　逆算
             count_lines = content_text.count('\n')
             if count_lines != 0:
@@ -74,7 +74,7 @@ async def extract_text_coordinates_dict(pdf_data):
         text_instances_dict = await asyncio.to_thread(page.get_text, "dict")
         text_instances = text_instances_dict["blocks"]
         page_content = []
-        
+
         for lines in text_instances:
             block = {}
             if lines["type"] != 0:
@@ -96,7 +96,7 @@ async def extract_text_coordinates_dict(pdf_data):
             block["size"] = np.mean(sizes)
             # block["text_count"] = len(block["text"])
             page_content.append(block)
-        
+
         content.append(page_content)
     await asyncio.to_thread(document.close)
     return content
@@ -116,13 +116,13 @@ async def extract_text_coordinates_dict_dev(pdf_data):
         text_instances_dict = await asyncio.to_thread(page.get_text, "dict")
         text_instances = text_instances_dict["blocks"]
         page_content = []
-        
+
         for lines in text_instances:
             if lines["type"] != 0:
                 # テキストブロック以外はスキップ
                 continue
             page_content.append(lines)
-        
+
         content.append(page_content)
 
     await asyncio.to_thread(document.close)
@@ -135,78 +135,90 @@ def check_first_num_tokens(input_list, keywords, num=2):
                 return True
     return False
 
-async def remove_blocks(block_info, token_threshold=10,debug=False,lang='en'):
-    import string,copy
+import string
+import copy
+import numpy as np
+import math
+
+def remove_special_chars(text):
+    return ''.join(char for char in text if char not in string.punctuation and char not in string.digits)
+
+def calculate_token_scores(text_list, lang, token_threshold) -> list:
     """
-    トークン数が指定された閾値以下のブロックをリストから削除します。更にブロックの幅のパーセンタイルを求め、幅300以上のパーセンタイルブロックをリストから消去します。
-    削除されたブロックも返します。
+    テキストのリストに対してトークン数を計算し、
+    トークン数が指定されたしきい値以下の場合は0、それ以外の場合は1を返します。
+    """
+    tokens_list = [tokenize_text(lang, text) for text in text_list]
+    token_counts = [len(tokens) for tokens in tokens_list]
+    return [0 if token_threshold <= count else 1 for count in token_counts], token_counts
+
+
+def calculate_percentile_scores(data) -> list:
+    """
+    データのパーセンタイルスコアを計算し、中央値を基準に標準化します。
+    """
+    item_median = np.median(data)
+    item_75_percentile = np.percentile(data, 75)
+    item_25_percentile = np.percentile(data, 25)
+    iqr = item_75_percentile - item_25_percentile
+    res = [(value - item_median) / iqr if iqr != 0 else 0 for value in data]
+    return res
+
+
+def calculate_marge_scores(scores):
+    """
+    トークン数、幅、サイズのスコアをマージし、合計スコアを返します。
+    """
+    return [sum(score_list) for score_list in scores]
+
+
+def calculate_histogram_bins(marge_scores):
+    """
+    マージスコアのヒストグラムを計算し、最大のビンを返します。
+    """
+    n = len(marge_scores)
+    num_bins_sturges = math.ceil(math.log2(n) + 1)
+
+    q75, q25 = np.percentile(marge_scores, [75, 25])
+    iqr = q75 - q25
+    bin_width_fd = 2 * iqr / n ** (1/3)
+    bin_range = max(marge_scores) - min(marge_scores)
+    num_bins_fd = math.ceil(bin_range / bin_width_fd)
+
+    num_bins = min(num_bins_sturges, num_bins_fd)
+    histogram, bin_edges = np.histogram(marge_scores, bins=num_bins)
+    max_index = np.argmax(histogram)
+
+    return bin_edges[max_index], bin_edges[max_index + 1]
+
+
+async def remove_blocks(block_info, token_threshold=10, debug=False, lang='en') -> list:
+    """
+    トークン数が指定された閾値以下のブロックをリストから削除し、
+    幅300以上のパーセンタイルブロックをリストから消去します。
 
     :param block_info: ブロック情報のリスト
-    :param token_threshold: 単語トークンしきい値。この値を下回る場合は無視される
+    :param token_threshold: トークンしきい値
     :return: 更新されたブロック情報のリストと削除されたブロック情報のリスト
     """
-    #フィルターに基づいて分離する。
-    filtered_blocks = []
-    fig_table_blocks = []
-    removed_blocks = []
+    filtered_blocks, fig_table_blocks, removed_blocks = [], [], []
 
-    # データの分割
     bboxs = [item['coordinates'] for sublist in block_info for item in sublist]
     widths = [x1 - x0 for x0, _, x1, _ in bboxs]
-
     sizes = [item['size'] for sublist in block_info for item in sublist]
+    text_list = [remove_special_chars(item['text'].replace("\n", "")) for sublist in block_info for item in sublist]
 
-    text_list = [item['text'] for sublist in block_info for item in sublist]
-    for i in range(len(text_list)):
-        text_list[i] = text_list[i].replace("\n", "")
-        text_list[i] = ''.join(char for char in text_list[i] if char not in string.punctuation and char not in string.digits)
-    texts = [tokenize_text(lang,text) for text in text_list]
-    texts = [len(text) for text in texts]
+    token_scores, token_counts = calculate_token_scores(text_list, lang, token_threshold)
+    width_scores = calculate_percentile_scores(widths)
+    size_scores = calculate_percentile_scores(sizes)
 
-    # スコア値を換算
-    scores = []
+    scores = [[token_score] for token_score in token_scores]
+    for width_score, size_score, score_list in zip(width_scores, size_scores, scores):
+        score_list.append(width_score)
+        score_list.append(size_score)
 
-    for text in texts:
-        if token_threshold <= text:
-            scores.append([0])
-        else:
-            scores.append([1])
-    
-    for item in [widths,sizes]:
-        # IQR:ロバストスケーリング
-        item_median = median(item)
-        item_75_percentile = np.percentile(item,75)
-        item_25_percentile = np.percentile(item,25)
-        
-        for value,score_list in zip(item,scores):
-            score = abs((value-item_median)/(item_75_percentile-item_25_percentile))
-            score_list.append(score)
-    marge_score = [] #3スコアの中央値を換算
-    for list_score in scores:
-        score_median = sum(list_score)
-        marge_score.append(score_median)
-    
-    # ヒストグラムから基準値を算出
-    # データのサンプルサイズ
-    n = len(marge_score)
-    # スタージェスの公式を使用してビンの数を計算
-    num_bins_sturges = math.ceil(math.log2(n) + 1)
-    # IQRを計算
-    q75, q25 = np.percentile(marge_score, [75 ,25])
-    iqr = q75 - q25
-    # フリードマン＝ダイアコニスのルールに基づいてビン幅を計算
-    bin_width_fd = 2 * iqr / n ** (1/3)
-    # ビン幅を基にビンの数を計算
-    bin_range = max(marge_score) - min(marge_score)
-    num_bins_fd = math.ceil(bin_range / bin_width_fd)
-    # ビンの数を決定（二つの方法のうち小さい方を選択）
-    num_bins = min(num_bins_sturges, num_bins_fd)
-    # ヒストグラムを計算
-    histogram, bin_edges = np.histogram(marge_score, bins=num_bins)
-    # 最も頻繁に現れるビンのインデックスを取得
-    max_index = np.argmax(histogram)
-    # 最も頻繁に現れる範囲を返す
-    most_frequent_range = (bin_edges[max_index], bin_edges[max_index + 1])
+    marge_scores = calculate_marge_scores(scores)
+    low, high = calculate_histogram_bins(marge_scores)
 
     i = 0
     for pages in block_info:
@@ -215,70 +227,27 @@ async def remove_blocks(block_info, token_threshold=10,debug=False,lang='en'):
         page_removed_blocks = []
 
         for block in pages:
+            tokens_list = tokenize_text(lang, block["text"])
+            score = marge_scores[i]
+            token_score, width_score, size_score = scores[i]
+            is_valid_block = low <= score <= high and token_score == 0
 
-            #tokenを計算
-            block_text = block["text"]
-            tokens_list = tokenize_text(lang,block_text)
-
-            # スコア値の取得
-            score = marge_score[i]
-            size = math.floor((sizes[i])*100)/100
-            result=  bool(most_frequent_range[0]<=score<=most_frequent_range[1] and scores[i][0]==0)
-            printscore = F"[{math.floor(score * 100) / 100}/{result}] /T:{math.floor((scores[i][0])*100)/100}({texts[i]})/W:{math.floor((scores[i][1])*100)/100}/S:{math.floor((scores[i][2])*100)/100}({size})"
-
-            # tokenリスト３番目までに特定ワードが入ってる場合はグラフ表として認識する
-            if lang == 'ja':
-                keyword = ['表','グラフ']
-            else:
-                keyword = ['fig','table']
-            table_bool = check_first_num_tokens(tokens_list,keyword)
-            
-            if table_bool:
-                # 図データとしてリストに追加
+            if check_first_num_tokens(tokens_list, ['表', 'グラフ'] if lang == 'ja' else ['fig', 'table']):
                 page_fig_table_blocks.append(block)
-            elif most_frequent_range[0]<=score<=most_frequent_range[1] and scores[i][0]==0:
-                # 本文データとしてリストに追加
+            elif is_valid_block:
                 page_filtered_blocks.append(block)
             else:
-                #データを除外
-                swap_text = F"{printscore}"
-                add_block = copy.copy(block)
-                add_block["text"] = swap_text
-                page_removed_blocks.append(add_block)
-            i+=1
+                swapped_block = copy.copy(block)
+                swapped_block["text"] = f"[{score}/{is_valid_block}] /T:{token_score}/{token_counts[i]} /W:{width_score} /S:{size_score}/{sizes[i]}"
+                page_removed_blocks.append(swapped_block)
+            i += 1
 
         fig_table_blocks.append(page_fig_table_blocks)
         filtered_blocks.append(page_filtered_blocks)
         removed_blocks.append(page_removed_blocks)
-    
-    if debug:
-        # 解析用にデータを保存する
-        size_median = median(sizes)
-        size_mean = np.mean(sizes)
 
-        #tokenのしきい値を求める
-        texts = [item['text'] for sublist in block_info for item in sublist]
-        tokens = []
-        for text in texts:
-            # 記号と数字を除外し、それ以外の文字だけを含む文字列を生成
-            text = text.replace("\n","")
-            text = ''.join(char for char in text if char not in string.punctuation and char not in string.digits)
-            token = tokenize_text('en', text)
-            tokens.append(len(token))
-        token_median = median(tokens)
-        token_mean = np.mean(tokens)
+    return filtered_blocks, fig_table_blocks, removed_blocks, None
 
-        token_Mean = plot_area_distribution(areas=tokens,labels_values=[{"Median":token_median},
-                                                        {"Mean":token_mean}],title="token Mean",xlabel='Token',ylabel='Frequency')
-
-        size_Mean = plot_area_distribution(areas=sizes,labels_values=[{"Median":size_median},
-                                                        {"Mean":size_mean}],title="Size Mean",xlabel='font size',ylabel='Frequency')
-
-        socre_Mean = plot_area_distribution(areas=marge_score,labels_values=[{"Histogram Low":most_frequent_range[0]},
-                                                        {"Histogram High":most_frequent_range[1]}],title="score Mean",xlabel='score',ylabel='Frequency')
-       
-        return filtered_blocks,fig_table_blocks,removed_blocks,[token_Mean,size_Mean,socre_Mean]
-    return filtered_blocks,fig_table_blocks,removed_blocks,None
 
 async def remove_textbox_for_pdf(pdf_data, remove_list):
     """
@@ -356,7 +325,7 @@ async def preprocess_write_blocks(block_info, to_lang='ja'):
                     num_colums = int(hight/(font_size*lh_calc_factor))
                     num_raw = int(width/a_width)
                     max_chars_per_boxes.append([num_raw]*num_colums)
-                
+
                 # 文字列を改行ごとに分割してリストに格納
                 text_all = box["text"].replace(' ', '\u00A0') #スペースを改行されないノーブレークスペースに置き換え
                 #text_all = box["text"]
@@ -391,7 +360,7 @@ async def preprocess_write_blocks(block_info, to_lang='ja'):
                                 break
                             text = text_list.pop(0)
                             text_num = len(text)
-                    
+
                     if len(text) != text_num:
                         cut_length = len(text) - text_num
                         box_text += text[:cut_length]
@@ -431,7 +400,7 @@ async def write_pdf_text(input_pdf_data, block_info, to_lang='en',text_color=[0,
     doc = await asyncio.to_thread(fitz.open, stream=input_pdf_data, filetype="pdf")
 
     for page_block in block_info:
-        
+
         for block in page_block:
             #ページ設定
             page_num = block["page_no"]
@@ -445,10 +414,10 @@ async def write_pdf_text(input_pdf_data, block_info, to_lang='en',text_color=[0,
                 rect = fitz.Rect(coordinates)
                 result = page.insert_textbox(rect, text, fontsize=font_size, fontname="F0", align=3, lineheight = lh_factor, color = text_color)
                 if result >=0:
-                    break   
+                    break
                 else:
                     coordinates[3]+=1
-        
+
     output_buffer = BytesIO()
     await asyncio.to_thread(doc.save, output_buffer, garbage=4, deflate=True, clean=True)
     await asyncio.to_thread(doc.close)
@@ -487,7 +456,7 @@ async def write_image_data(input_pdf_data,image_data,rect=(10,10,200,200),positi
     os.remove(temp_image_path)  # temp_image.pngを削除
     #ドキュメントのクローズ
     await asyncio.to_thread(doc.close)
-    
+
     # PDFデータをバイトとして返す
     output_data = output_buffer.getvalue()
     return output_data
@@ -532,18 +501,18 @@ async def create_viewing_pdf(base_pdf_path, translated_pdf_path):
         # ページサイズはそれぞれのPDFの1ページの幅と高さを使う
         rect_base = page_base.rect
         rect_translate = page_translate.rect
-        
+
         # 両ページの高さが異なる場合、高い方に合わせる
         max_height = max(rect_base.height, rect_translate.height)
 
         # base_pdfのページを左ページに追加
         new_page = new_doc.new_page(width=rect_base.width, height=max_height)
         new_page.show_pdf_page(new_page.rect, doc_base, page_num)
-        
+
         # translated_pdfのページを右ページに追加
         new_page = new_doc.new_page(width=rect_translate.width, height=max_height)
         new_page.show_pdf_page(new_page.rect, doc_translate, page_num)
-    
+
     # ページレイアウトを見開きに設定
     new_doc.set_pagelayout("TwoPageLeft")
 
