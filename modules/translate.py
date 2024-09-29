@@ -3,6 +3,9 @@ import asyncio
 from config import *
 from modules.pdf_edit import *
 
+from modules.translate_ollama import translate_str_data_with_ollama
+from tenacity import retry, wait_fixed, stop_after_attempt
+
 async def translate_str_data(key: str,text: str, target_lang: str,api_url:str) -> str:
     """
     DeepL APIを使用して、入力されたテキストを指定の言語に翻訳する非同期関数。
@@ -38,28 +41,58 @@ async def translate_str_data(key: str,text: str, target_lang: str,api_url:str) -
             else:
                 return {'ok':False,'message':f"DeepL API request failed with status code {response.status}"}
 
-async def translate_blocks(blocks,key: str, target_lang: str,api_url:str):
-    # テキスト検出
-    translate_text = ""
-    for page in blocks:
-        for block in page:
-            translate_text += block["text"] + "\n"
-    
-    # 翻訳
-    translated_text = await translate_str_data(key,translate_text,target_lang,api_url)
 
-    if translated_text['ok']:
-        translated_text = translated_text['data']
-    else:
-        raise Exception(translated_text['message'])
-    translated_text = translated_text.split('\n')
-    
-    # 翻訳後テキスト挿入
-    for page in blocks:
-        for block in page:
-            block["text"] = translated_text.pop(0)
+async def translate_blocks(blocks,key: str, target_lang: str,api_url:str):
+
+    @retry(wait=wait_fixed(2), stop=stop_after_attempt(4))
+    async def translate_block(block) -> dict:
+        """
+        ブロックのテキストを翻訳する非同期関数
+        ブロックとは、text, coordinates, block_no, page_no, sizeのキーを持つ辞書を指す
+        """
+        text = block["text"]
+        if text.strip() == "":
+            return block
+
+        translated_text = await translate_str_data_with_ollama(text,target_lang)
+        if translated_text['ok']:
+            block["text"] = translated_text['data']
+            return block
+        else:
+            raise Exception(translated_text['message'])
+
+    async def print_progress(tasks_tuple):
+        """
+        翻訳進捗状況表示
+        """
+        while True:
+            completed = [True for e in tasks_tuple if e[-1].done()]
+            if len(completed) == len(tasks):
+                break
+            print(f"  completed {len(completed)/len(tasks)} tasks", end="\r")
+            await asyncio.sleep(5)
+
+    tasks = []
+    try:
+        async with asyncio.TaskGroup() as tg:
+            for block_idx, page in enumerate(blocks):
+                    for page_idx, block in enumerate(page):
+                        task = tg.create_task(translate_block(block))
+                        tasks.append(((block_idx, page_idx), task))
+            print(f"  generated {len(tasks)} tasks")
+            print("  waiting for complete...")
+            await print_progress(tasks)
+    except* Exception as e:
+        print(f"{e.exceptions=}")
+        raise e
+
+    print("  completed all tasks")
+
+    for (block_idx, page_idx), task in tasks:
+        blocks[block_idx][page_idx] = task.result()
 
     return blocks
+
 
 async def preprocess_translation_blocks(blocks,end_maker=(".",":",";"),end_maker_enable=True):
     """
@@ -97,10 +130,10 @@ async def preprocess_translation_blocks(blocks,end_maker=(".",":",";"),end_maker
                 page_no = []
                 font_size = []
             temp_block_no = block["block_no"]
-                
+
         results.append(page_results)
     return results
-    
+
 async def deepl_convert_xml_calc_cost(json_data):
     """
     翻訳コストを算出します。
@@ -120,7 +153,7 @@ async def deepl_convert_xml_calc_cost(json_data):
 async def pdf_translate(key,pdf_data,source_lang = 'en',to_lang = 'ja',api_url="https://api.deepl.com/v2/translate",debug = False,disable_translate=False):
 
     block_info = await extract_text_coordinates_dict(pdf_data)
-    
+
     if debug:
         text_blocks,fig_blocks,remove_info,plot_images = await remove_blocks(block_info,10,lang=source_lang,debug=True)
     else:
@@ -136,6 +169,7 @@ async def pdf_translate(key,pdf_data,source_lang = 'en',to_lang = 'ja',api_url="
     print("2.Generate Prepress_blocks")
 
     # 翻訳実施
+    translated_pdf_data = None
     if disable_translate is False:
         translate_text_blocks = await translate_blocks(preprocess_text_blocks,key,to_lang,api_url)
         translate_fig_blocks = await translate_blocks(preprocess_fig_blocks,key,to_lang,api_url)
@@ -146,60 +180,24 @@ async def pdf_translate(key,pdf_data,source_lang = 'en',to_lang = 'ja',api_url="
         print("4.Generate wirte Blocks")
         # pdfの作成
         if write_text_blocks != []:
+            print("write text to pdf.")
+            print(len(write_text_blocks))
             translated_pdf_data = await write_pdf_text(removed_textbox_pdf_data,write_text_blocks,to_lang)
+        else:
+            print("write text to pdf is empty.")
+            breakpoint()
+
         if write_fig_blocks != []:
+            print("write fig to pdf.")
             translated_pdf_data = await write_pdf_text(translated_pdf_data,write_fig_blocks,to_lang)
-        translated_pdf_data = await write_logo_data(translated_pdf_data)
+        else:
+            print("write fig to pdf is empty.")
+            breakpoint()
+
     else:
         print("99.Translate is False")
-    
-    """
-    if debug:
-        import json
-        raw_blocks = await extract_text_coordinates_dict_dev(pdf_data)
-        with open(Debug_folder_path+'raw_blocks.json', 'w', encoding='utf-8') as json_file:
-            json.dump(raw_blocks, json_file, ensure_ascii=False, indent=2)
-        with open(Debug_folder_path+'all_blocks.json', 'w', encoding='utf-8') as json_file:
-            json.dump(block_info, json_file, ensure_ascii=False, indent=2)
-        with open(Debug_folder_path+'text_block.json', 'w', encoding='utf-8') as json_file:
-            json.dump(text_blocks, json_file, ensure_ascii=False, indent=2)
-        with open(Debug_folder_path+'fig_blocks.json', 'w', encoding='utf-8') as json_file:
-            json.dump(fig_blocks, json_file, ensure_ascii=False, indent=2)
-        with open(Debug_folder_path+'remove_info.json', 'w', encoding='utf-8') as json_file:
-            json.dump(remove_info, json_file, ensure_ascii=False, indent=2)
-        
-        if disable_translate is False:
-            with open(Debug_folder_path+'translate_text_blocks.json', 'w', encoding='utf-8') as json_file:
-                json.dump(translate_text_blocks, json_file, ensure_ascii=False, indent=2)
-            with open(Debug_folder_path+'translate_fig_blocks.json', 'w', encoding='utf-8') as json_file:
-                json.dump(translate_fig_blocks, json_file, ensure_ascii=False, indent=2)
-            with open(Debug_folder_path+'write_text_blocks.json', 'w', encoding='utf-8') as json_file:
-                json.dump(write_text_blocks, json_file, ensure_ascii=False, indent=2)
-            with open(Debug_folder_path+'write_fig_blocks.json', 'w', encoding='utf-8') as json_file:
-                json.dump(write_fig_blocks, json_file, ensure_ascii=False, indent=2)
-    
-        
-        text_block_pdf_data = await pdf_draw_blocks(pdf_data,text_blocks,width=0,fill_opacity=0.3,fill_colorRGB=[0,0,1])
-        fig_block_pdf_data = await pdf_draw_blocks(text_block_pdf_data,fig_blocks,width=0,fill_opacity=0.3,fill_colorRGB=[0,1,0])
-        all_block_pdf_data = await pdf_draw_blocks(fig_block_pdf_data,remove_info,width=0,fill_opacity=0.7,fill_colorRGB=[1,0,0])
-        
-        # グラフの描画
-        for image in plot_images:
-            all_block_pdf_data = await write_image_data(all_block_pdf_data,image,(10,10,410,410))
-            
-        with open(Debug_folder_path+"show_blocks.pdf", "wb") as f:
-            f.write(all_block_pdf_data)
-        with open(Debug_folder_path+"removed_pdf.pdf", "wb") as f:
-            f.write(removed_textbox_pdf_data)
-        
-        # block 消去理由を描画
-        if disable_translate is False:
-            translated_pdf_data = await write_pdf_text(translated_pdf_data,remove_info,text_color=[0,0,1],font_path="fonts/ariblk.ttf")
-        else:
-            translated_pdf_data = await write_pdf_text(all_block_pdf_data,remove_info,text_color=[0,0,1],font_path="fonts/ariblk.ttf")
-        return translated_pdf_data
-        """
-    
+
+
     # 見開き結合の実施
     marged_pdf_data = await create_viewing_pdf(pdf_data,translated_pdf_data)
     print("5.Generate PDF Data")
@@ -213,7 +211,7 @@ async def PDF_block_check(pdf_data,source_lang = 'en'):
     block_info = await extract_text_coordinates_dict(pdf_data)
 
     text_blocks,fig_blocks,leave_blocks = await remove_blocks(block_info,10,lang=source_lang)
-        
+
     text_block_pdf_data = await pdf_draw_blocks(pdf_data,text_blocks,width=0,fill_opacity=0.3,fill_colorRGB=[0,0,1])
     fig_block_pdf_data = await pdf_draw_blocks(text_block_pdf_data,fig_blocks,width=0,fill_opacity=0.3,fill_colorRGB=[0,1,0])
     all_block_pdf_data = await pdf_draw_blocks(fig_block_pdf_data,leave_blocks,width=0,fill_opacity=0.3,fill_colorRGB=[1,0,0])
