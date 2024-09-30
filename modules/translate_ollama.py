@@ -64,7 +64,9 @@ async def translate_str_data_with_ollama(
             {original_text}
             """.format(original_text=text_pre_processing(text))), print_progress)
 
-        #TODO! 後で消す
+
+        # Disabling self-refinement for now, as it is a time-consuming process and
+        # found not to be effective in most cases.
         if return_first_translation:
             return {
                 'ok': True,

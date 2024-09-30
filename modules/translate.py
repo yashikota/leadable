@@ -1,5 +1,6 @@
 import aiohttp
 import asyncio
+import time
 from config import *
 from modules.pdf_edit import *
 
@@ -61,16 +62,11 @@ async def translate_blocks(blocks,key: str, target_lang: str,api_url:str):
         else:
             raise Exception(translated_text['message'])
 
-    async def print_progress(tasks_tuple):
+    def print_progress(*args):
         """
         翻訳進捗状況表示
         """
-        while True:
-            completed = [True for e in tasks_tuple if e[-1].done()]
-            if len(completed) == len(tasks):
-                break
-            print(f"  completed {len(completed)/len(tasks)} tasks", end="\r")
-            await asyncio.sleep(5)
+        print(".", end="", flush=True)
 
     tasks = []
     try:
@@ -78,10 +74,11 @@ async def translate_blocks(blocks,key: str, target_lang: str,api_url:str):
             for block_idx, page in enumerate(blocks):
                     for page_idx, block in enumerate(page):
                         task = tg.create_task(translate_block(block))
+                        task.add_done_callback(print_progress)
                         tasks.append(((block_idx, page_idx), task))
             print(f"  generated {len(tasks)} tasks")
             print("  waiting for complete...")
-            await print_progress(tasks)
+            # show progress while waiting for completion
     except* Exception as e:
         print(f"{e.exceptions=}")
         raise e
@@ -154,10 +151,10 @@ async def pdf_translate(key,pdf_data,source_lang = 'en',to_lang = 'ja',api_url="
 
     block_info = await extract_text_coordinates_dict(pdf_data)
 
-    if debug:
-        text_blocks,fig_blocks,remove_info,plot_images = await remove_blocks(block_info,10,lang=source_lang,debug=True)
-    else:
-        text_blocks,fig_blocks,_,_ = await remove_blocks(block_info,10,lang=source_lang)
+    text_blocks,fig_blocks,_excluded_blocks = await remove_blocks(block_info,10,lang=source_lang)
+    # breakpoint()
+    # t = lambda x: '\n'.join([ee.get('text') for e in x for ee in e])
+
     # 翻訳部分を消去したPDFデータを制作
     removed_textbox_pdf_data = await remove_textbox_for_pdf(pdf_data,text_blocks)
     removed_textbox_pdf_data = await remove_textbox_for_pdf(removed_textbox_pdf_data,fig_blocks)

@@ -144,11 +144,11 @@ def remove_special_chars(text):
 def calculate_token_scores(text_list, lang, token_threshold) -> list:
     """
     テキストのリストに対してトークン数を計算し、
-    トークン数が指定されたしきい値以下の場合は0、それ以外の場合は1を返します。
+    トークン数が指定されたしきい値以下の場合は0、そうでない以外の場合は1を返します。
     """
     tokens_list = [tokenize_text(lang, text) for text in text_list]
     token_counts = [len(tokens) for tokens in tokens_list]
-    return [0 if token_threshold <= count else 1 for count in token_counts], token_counts
+    return [0 if count <= token_threshold else 1 for count in token_counts], token_counts
 
 
 def calculate_percentile_scores(data) -> list:
@@ -170,9 +170,11 @@ def calculate_marge_scores(scores):
     return [sum(score_list) for score_list in scores]
 
 
-def calculate_histogram_bins(marge_scores):
+def calculate_histogram_bins(marge_scores, n_neighbours=0) -> tuple:
     """
-    マージスコアのヒストグラムを計算し、最大ビンの範囲を返します。
+    マージスコアのヒストグラムを計算し、
+    最頻ビンからn_neighboursビンに相当する範囲を返します。
+    0は最頻ビン1個, 1は最頻ビンの両隣を含む最大3個
     """
     # スタージェスの公式によるビン数の計算
     n = len(marge_scores)
@@ -192,12 +194,19 @@ def calculate_histogram_bins(marge_scores):
     print("[Histogram]")
     print(f"{num_bins=}")
     print(f"{histogram=}")
-    max_index = np.argmax(histogram)
+    print(f"{bin_edges=}")
 
-    return bin_edges[max_index], bin_edges[max_index + 1]
+    frequent_bins = np.argsort(histogram)[::-1][:n_neighbours + 1]
+    res = []
+    for b in frequent_bins:
+        print(f"{b=}, {histogram[b]=}")
+        res.append((bin_edges[b], bin_edges[b + 1]))
+
+    print(f"{res=}")
+    return res
 
 
-async def remove_blocks(block_info, token_threshold=10, debug=False, lang='en') -> list:
+async def remove_blocks(block_info, token_threshold=15, debug=False, lang='en') -> list:
     """
     トークン数が指定された閾値以下のブロックをリストから削除し、
     幅300以上のパーセンタイルブロックをリストから消去します。
@@ -206,7 +215,7 @@ async def remove_blocks(block_info, token_threshold=10, debug=False, lang='en') 
     :param token_threshold: トークンしきい値
     :return: 更新されたブロック情報のリストと削除されたブロック情報のリスト
     """
-    filtered_blocks, fig_table_blocks, removed_blocks = [], [], []
+    text_blocks, fig_blocks, excluded_blocks = [], [], []
 
     bboxs = [item['coordinates'] for sublist in block_info for item in sublist]
     widths = [x1 - x0 for x0, _, x1, _ in bboxs]
@@ -223,35 +232,50 @@ async def remove_blocks(block_info, token_threshold=10, debug=False, lang='en') 
         score_list.append(size_score)
 
     marge_scores = calculate_marge_scores(scores)
-    low, high = calculate_histogram_bins(marge_scores)
+
+    frequent_bins = calculate_histogram_bins(marge_scores, n_neighbours=1) # 頻度1位,2位のビンの範囲を取得
+    first_bin, second_bin = frequent_bins
 
     i = 0
     for pages in block_info:
-        page_filtered_blocks = []
+        page_text_blocks = []
         page_fig_table_blocks = []
-        page_removed_blocks = []
+        page_excluded_blocks = []
 
         for block in pages:
             tokens_list = tokenize_text(lang, block["text"])
             score = marge_scores[i]
+            _simple_word_cnt = len(block["text"].split(" "))
+
             token_score, width_score, size_score = scores[i]
-            is_valid_block = low <= score <= high and token_score == 0
+
+            # 本文ブロックをみなすrule（有効なTextブロック）
+            rule1 = token_score == 1
+            rule2 = first_bin[0] <= score <= first_bin[1] or second_bin[0] <= score <= second_bin[1]
+            # 30単語以上かつ、空白文字の割合が40%以下
+            rule3 = _simple_word_cnt > 30 and block["text"].count(" ") / len(block["text"]) < 0.4
+            is_valid_block = (rule1 and rule2) or rule3
 
             if check_first_num_tokens(tokens_list, ['表', 'グラフ'] if lang == 'ja' else ['fig', 'table']):
                 page_fig_table_blocks.append(block)
             elif is_valid_block:
-                page_filtered_blocks.append(block)
+                page_text_blocks.append(block)
             else:
                 swapped_block = copy.copy(block)
-                swapped_block["text"] = f"[{score}/{is_valid_block}] /T:{token_score}/{token_counts[i]} /W:{width_score} /S:{size_score}/{sizes[i]}"
-                page_removed_blocks.append(swapped_block)
+                swapped_block["text"] = f"[{score}/{is_valid_block}] /T:{token_score}/{token_counts[i]} /W:{width_score} /S:{size_score}/{sizes[i]} /Text:{block['text']}"
+                page_excluded_blocks.append(swapped_block)
             i += 1
 
-        fig_table_blocks.append(page_fig_table_blocks)
-        filtered_blocks.append(page_filtered_blocks)
-        removed_blocks.append(page_removed_blocks)
+            if is_valid_block:
+                print(f"[INFO] to translate: {block["text"][:20]}")
 
-    return filtered_blocks, fig_table_blocks, removed_blocks, None
+        text_blocks.append(page_text_blocks)
+        fig_blocks.append(page_fig_table_blocks)
+        excluded_blocks.append(page_excluded_blocks)
+
+
+
+    return text_blocks, fig_blocks, excluded_blocks
 
 
 async def remove_textbox_for_pdf(pdf_data, remove_list):
