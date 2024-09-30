@@ -56,12 +56,13 @@ async def translate_str_data_with_ollama(
     try:
         initial_translation = await chat_with_ollama(
             system_prompt,
-            """
-            This is a English to Japanese, Literal Translation task. Please provide the Japanese translation for the next sentences.
+            text_pre_processing("""
+            This is a English to Japanese, Literal Translation task.
+            Please provide the Japanese translation for the next sentences.
             You must not include any chat messages to the user in your response.
             ---
             {original_text}
-            """.format(original_text=text_pre_processing(text)), print_progress)
+            """.format(original_text=text_pre_processing(text))), print_progress)
 
         #TODO! 後で消す
         if return_first_translation:
@@ -70,44 +71,44 @@ async def translate_str_data_with_ollama(
                 'data': initial_translation,
             }
 
-        # Let's work this out in a step by step way to be sure we have the right answer.
         review_comment = await chat_with_ollama(
-        # review_comment = await chat_with_openai(
             system_prompt,
-            """
-            Is there anything in this Translated Text that does not conform to the local language? Find the mistakes and correct them.
-            ---
-            Orginal Text:
+            text_pre_processing("""
+            Orginal Text(English):
             {original_text}
             ---
-            Translated Text:
+            Translated Text(Japanese):
             {translated_text}
+            ---
+            Is there anything in the above Translated Text that does not conform to the local language's grammar, style, natural tone or cultural norms?
+            Find mistakes and specify corrected phrase and why it is not appropriate.
+            Each bullet should be in the following format:
+
+            * <translated_phrase>
+                * Corrected: <corrected_phrase>
+                * Why: <reason>
             """.format(
-                original_text=text_pre_processing(text),
-                translated_text=text_pre_processing(initial_translation)
-            ), print_progress)
+                original_text=text,
+                translated_text=initial_translation
+            )), print_progress)
 
 
         final_translation = await chat_with_ollama(
             system_prompt,
-            """
-            Read the Original Text, Initial Translation and Review Comments, then provide corrected **full text** of translation.
-            The final translation should be a complete and accurate translation of the original text.
-            You must not include any chat messages to the user in your response.
-            ---
+            text_pre_processing("""
             Orginal Text:
             {original_text}
             ---
-            Translated Text:
-            {translated_text}
-            ---
-            Review Comments:
+            Hints for translation:
             {review_comments}
+            ---
+            Read the Original Text, and Hits for trasnlation above, then provide complete and accurate Japanese translation.
+            You must not include any chat messages to the user in your response.
             """.format(
                 original_text=text,
-                translated_text=text_pre_processing(initial_translation),
-                review_comments=text_pre_processing(review_comment),
-            ), print_progress)
+                # translated_text=text_pre_processing(initial_translation),
+                review_comments=review_comment,
+            )), print_progress)
 
     except Exception as e:
         return {'ok': False, 'message': f"Ollama API request failed: {str(e)}"}

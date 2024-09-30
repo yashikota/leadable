@@ -1,5 +1,5 @@
-from modules.translate import pdf_translate #, PDF_block_check, write_logo_data
-import os, asyncio,time
+from modules.translate import pdf_translate
+import os, asyncio
 import tkinter as tk
 from tkinter import filedialog
 from config import *
@@ -17,7 +17,13 @@ async def translate_local(deepl_url,deepl_key,disble_translate=False):
     with open(file_path, "rb") as f:
         input_pdf_data = f.read()
 
-    result_pdf = await pdf_translate(deepl_key, input_pdf_data,api_url=deepl_url,debug=False,disable_translate=disble_translate)
+    result_pdf = await pdf_translate(
+        deepl_key,
+        input_pdf_data,
+        api_url=deepl_url,
+        debug=False,
+        disable_translate=disble_translate
+    )
 
     if result_pdf is None:
         return
