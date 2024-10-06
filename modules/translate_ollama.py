@@ -1,6 +1,8 @@
 import re
-import ollama
 from textwrap import dedent
+
+import ollama
+
 
 def text_pre_processing(text: str) -> str:
     """
@@ -20,19 +22,21 @@ def text_pre_processing(text: str) -> str:
     return _tmp
 
 
-async def chat_with_ollama(system_prompt: str, user_prompt: str, print_result: bool) -> str:
+async def chat_with_ollama(
+    system_prompt: str, user_prompt: str, print_result: bool
+) -> str:
     try:
         processed_system_prompt = text_pre_processing(system_prompt)
         processed_user_prompt = text_pre_processing(user_prompt)
         response = ollama.chat(
-            model="gemma2:27b",  # specify the model that supports chat completions
+            model="lucas2024/gemma-2-2b-jpn-it:q8_0",  # specify the model that supports chat completions
             messages=[
                 {"role": "system", "content": processed_system_prompt},
-                {"role": "user", "content": processed_user_prompt}
-            ]
+                {"role": "user", "content": processed_user_prompt},
+            ],
         )
         if print_result:
-            print("=*"*20)
+            print("=*" * 20)
             print("User: \n", processed_user_prompt)
             print("Ollama: \n", response["message"]["content"])
         return response["message"]["content"]
@@ -41,41 +45,46 @@ async def chat_with_ollama(system_prompt: str, user_prompt: str, print_result: b
 
 
 async def translate_str_data_with_ollama(
-        text: str,
-        target_lang: str,
-        print_progress: bool = False,
-        return_first_translation: bool = True
-    ) -> str:
-    """Translate the input text to the target language using Ollama API.
-    """
+    text: str,
+    target_lang: str,
+    print_progress: bool = False,
+    return_first_translation: bool = True,
+) -> str:
+    """Translate the input text to the target language using Ollama API."""
 
     if target_lang.lower() not in ("ja"):
-        return {'ok': False, 'message': "Ollama only supports Japanese translation."}
+        return {"ok": False, "message": "Ollama only supports Japanese translation."}
 
-    system_prompt = "You are a world-class translator and will translate English text to Japanese."
+    system_prompt = (
+        "You are a world-class translator and will translate English text to Japanese."
+    )
     try:
         initial_translation = await chat_with_ollama(
             system_prompt,
-            text_pre_processing("""
+            text_pre_processing(
+                """
             This is a English to Japanese, Literal Translation task.
             Please provide the Japanese translation for the next sentences.
             You must not include any chat messages to the user in your response.
             ---
             {original_text}
-            """.format(original_text=text_pre_processing(text))), print_progress)
-
+            """.format(original_text=text_pre_processing(text))
+            ),
+            print_progress,
+        )
 
         # Disabling self-refinement for now, as it is a time-consuming process and
         # found not to be effective in most cases.
         if return_first_translation:
             return {
-                'ok': True,
-                'data': initial_translation,
+                "ok": True,
+                "data": initial_translation,
             }
 
         review_comment = await chat_with_ollama(
             system_prompt,
-            text_pre_processing("""
+            text_pre_processing(
+                """
             Orginal Text(English):
             {original_text}
             ---
@@ -89,15 +98,15 @@ async def translate_str_data_with_ollama(
             * <translated_phrase>
                 * Corrected: <corrected_phrase>
                 * Why: <reason>
-            """.format(
-                original_text=text,
-                translated_text=initial_translation
-            )), print_progress)
-
+            """.format(original_text=text, translated_text=initial_translation)
+            ),
+            print_progress,
+        )
 
         final_translation = await chat_with_ollama(
             system_prompt,
-            text_pre_processing("""
+            text_pre_processing(
+                """
             Orginal Text:
             {original_text}
             ---
@@ -107,17 +116,20 @@ async def translate_str_data_with_ollama(
             Read the Original Text, and Hits for trasnlation above, then provide complete and accurate Japanese translation.
             You must not include any chat messages to the user in your response.
             """.format(
-                original_text=text,
-                # translated_text=text_pre_processing(initial_translation),
-                review_comments=review_comment,
-            )), print_progress)
+                    original_text=text,
+                    # translated_text=text_pre_processing(initial_translation),
+                    review_comments=review_comment,
+                )
+            ),
+            print_progress,
+        )
 
     except Exception as e:
-        return {'ok': False, 'message': f"Ollama API request failed: {str(e)}"}
+        return {"ok": False, "message": f"Ollama API request failed: {str(e)}"}
 
     return {
-        'ok': True,
-        'data': final_translation,
+        "ok": True,
+        "data": final_translation,
         # 'progress': {
         #     '01_init': initial_translation,
         #     '02_review': review_comment,

@@ -1,11 +1,16 @@
 import spacy
-from config import SPACY_CONFIG
+
+# token 計算用
+SPACY_CONFIG = {
+    "supported_languages": {"en": "en_core_web_sm", "ja": "ja_core_news_sm"}
+}
 
 # サポートされている言語とそのモデルのマッピング
-supported_languages = SPACY_CONFIG['supported_languages']
+supported_languages = SPACY_CONFIG["supported_languages"]
 
 # spaCyモデルをロードし、キャッシュしておく辞書
 loaded_models = {}
+
 
 def load_model(lang_code):
     """指定された言語コードのモデルをロードする"""
@@ -24,23 +29,26 @@ def load_model(lang_code):
         print(f"No model available for language code: '{lang_code}'")
         return None
 
+
 def tokenize_text(lang_code, text):
     """指定された言語のテキストをトークン化し、トークンのリストを返す"""
     nlp = load_model(lang_code)
     if nlp:
         doc = nlp(text)
-        tokens = [token.text for token in doc if token.is_alpha] #トークンがアルファベットで構成されている可動はも判定
+        tokens = [
+            token.text for token in doc if token.is_alpha
+        ]  # トークンがアルファベットで構成されている可動はも判定
         return tokens
     else:
         return []
-    
+
 
 if __name__ == "__main__":
     # 使用例
     text_en = "This is an English sentence."
-    tokens_en = tokenize_text('en', text_en)
+    tokens_en = tokenize_text("en", text_en)
     print(f"English text tokens: {tokens_en}")
 
     text_ja = "これは日本語の文です。"
-    tokens_ja = tokenize_text('ja', text_ja)
+    tokens_ja = tokenize_text("ja", text_ja)
     print(f"Japanese text tokens: {tokens_ja}")
