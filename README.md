@@ -13,4 +13,4 @@
 2. `ollama pull lucas2024/gemma-2-2b-jpn-it:q8_0`
 3. [uv](https://github.com/astral-sh/uv)をインストール
 4. `uv sync`
-5. `uv run main.py`
+5. `uv run src/main.py`

@@ -1,7 +1,7 @@
 import asyncio
 import os
 
-from modules.translate import pdf_translate
+from translate import pdf_translate
 
 
 async def translate_local():

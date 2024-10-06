@@ -11,7 +11,7 @@ import fitz  # PyMuPDF
 import numpy as np
 from PIL import Image
 
-from modules.spacy_api import tokenize_text
+from spacy_api import tokenize_text
 
 
 async def extract_text_coordinates_blocks(pdf_data):
