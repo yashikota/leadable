@@ -1,67 +1,14 @@
 import asyncio
 import copy
-import io
 import math
-import os
 import string
 from collections import defaultdict
 from io import BytesIO
 
 import fitz  # PyMuPDF
 import numpy as np
-from PIL import Image
 
 from spacy_api import tokenize_text
-
-
-async def extract_text_coordinates_blocks(pdf_data):
-    """
-    pdf バイトデータのテキストファイル座標を取得します
-    """
-    # PDFファイルを開く
-    document = await asyncio.to_thread(fitz.open, stream=pdf_data, filetype="pdf")
-
-    # 全ページのテキスト、画像と座標を格納するためのリスト
-    content = []
-
-    for page_num in range(len(document)):
-        page_content = []
-
-        # ページを取得
-        page = await asyncio.to_thread(document.load_page, page_num)
-
-        # ページからテキストブロックを取得
-        blocks = await asyncio.to_thread(page.get_text, "blocks")
-
-        # 各テキストブロックからテキスト、画像と座標を抽出
-        for b in blocks:
-            x0, y0, x1, y1, content_text, block_no, block_type = b[:7]
-
-            # フォントサイズ 逆算
-            count_lines = content_text.count("\n")
-            if count_lines != 0:
-                calc_fs = (y1 - y0) / count_lines * 0.98
-            else:
-                calc_fs = y1 - y0
-            calc_fs = math.floor(calc_fs * 100) / 100
-
-            if block_type == 0:  # テキストブロック
-                block_info = {
-                    "block_no": block_no,
-                    "text": content_text,
-                    "size": calc_fs,
-                    "coordinates": (x0, y0, x1, y1),
-                }
-                page_content.append(block_info)
-            else:
-                print("Block:")
-                print(b)
-
-        content.append(page_content)
-
-    await asyncio.to_thread(document.close)
-
-    return content
 
 
 async def extract_text_coordinates_dict(pdf_data):
@@ -302,43 +249,6 @@ async def remove_textbox_for_pdf(pdf_data, remove_list):
     return output_data
 
 
-async def pdf_draw_blocks(
-    input_pdf_data,
-    block_info,
-    line_colorRGB=[0, 0, 1],
-    width=5,
-    fill_colorRGB=[0, 0, 1],
-    fill_opacity=1,
-):
-    """
-    PDFデータに、デバッグ用、四角い枠を作画します
-    """
-    doc = await asyncio.to_thread(fitz.open, stream=input_pdf_data, filetype="pdf")
-
-    for i, pages in enumerate(block_info):
-        page = doc[i]
-        for block in pages:
-            x0, y0, x1, y1 = block["coordinates"]
-            text_rect = fitz.Rect(x0, y0, x1, y1)
-            await asyncio.to_thread(
-                page.draw_rect,
-                text_rect,
-                color=line_colorRGB,
-                width=width,
-                fill=fill_colorRGB,
-                fill_opacity=fill_opacity,
-            )
-
-    output_buffer = BytesIO()
-    await asyncio.to_thread(
-        doc.save, output_buffer, garbage=4, deflate=True, clean=True
-    )
-    await asyncio.to_thread(doc.close)
-
-    output_data = output_buffer.getvalue()
-    return output_data
-
-
 async def preprocess_write_blocks(block_info, to_lang="ja"):
     lh_calc_factor = 1.3
 
@@ -482,73 +392,6 @@ async def write_pdf_text(
                     break
                 else:
                     coordinates[3] += 1
-
-    output_buffer = BytesIO()
-    await asyncio.to_thread(
-        doc.save, output_buffer, garbage=4, deflate=True, clean=True
-    )
-    await asyncio.to_thread(doc.close)
-    output_data = output_buffer.getvalue()
-
-    return output_data
-
-
-async def write_image_data(
-    input_pdf_data, image_data, rect=(10, 10, 200, 200), position=-1, add_new_page=True
-):
-    """
-    新しいページを作成し、画像を挿入します。
-    """
-    doc = await asyncio.to_thread(fitz.open, stream=input_pdf_data, filetype="pdf")
-
-    # 最初のページの寸法を取得
-    first_page = doc[0]  # 最初のページを取得
-    rect = first_page.rect  # 最初のページの寸法を取得
-
-    # ページの追加
-    if add_new_page:
-        doc.insert_page(position, width=rect.width, height=rect.height)
-
-    page = doc[position]
-    image_byte = Image.open(io.BytesIO(image_data))
-    temp_image_path = "temp_image.png"
-    image_byte.save(temp_image_path)
-    page.insert_image(rect, filename=temp_image_path)
-
-    # 保存と終了処理
-    output_buffer = BytesIO()
-    await asyncio.to_thread(
-        doc.save, output_buffer, garbage=4, deflate=True, clean=True
-    )
-
-    # 一時ファイルの削除
-    os.remove(temp_image_path)  # temp_image.pngを削除
-    # ドキュメントのクローズ
-    await asyncio.to_thread(doc.close)
-
-    # PDFデータをバイトとして返す
-    output_data = output_buffer.getvalue()
-    return output_data
-
-
-async def write_logo_data(input_pdf_data):
-    """
-    PDFにサービスロゴを描画します
-    """
-    doc = await asyncio.to_thread(fitz.open, stream=input_pdf_data, filetype="pdf")
-    rect = (5, 5, 35, 35)
-    logo_path = "./data/indqx_qr.png"
-    font_path = "fonts/TIMES.TTF"
-    for page in doc:
-        page.insert_font(fontname="F0", fontfile=font_path)
-        page.insert_image(rect, filename=logo_path)
-        page.insert_textbox(
-            (37, 5, 100, 35), "Translated by.", fontsize=5, fontname="F0"
-        )
-        page.insert_textbox((37, 12, 100, 35), "IndQx", fontsize=10, fontname="F0")
-        page.insert_textbox(
-            (37, 25, 100, 35), "Translation.", fontsize=5, fontname="F0"
-        )
 
     output_buffer = BytesIO()
     await asyncio.to_thread(

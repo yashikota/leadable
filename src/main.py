@@ -1,33 +1,34 @@
-import asyncio
 import os
 
-from fastapi import FastAPI
+import uvicorn
+from fastapi import FastAPI, File, UploadFile
+from fastapi.responses import JSONResponse
 
 from translate import pdf_translate
 
 app = FastAPI()
 
 
-@app.get("/")
-async def translate_local():
-    file_name = "test.pdf"
-    file_path = os.path.join("testdata", file_name)
-
-    with open(file_path, "rb") as f:
-        input_pdf_data = f.read()
+@app.post("/translate/")
+async def translate_local(file: UploadFile = File(...)):
+    input_pdf_data = await file.read()
 
     result_pdf = await pdf_translate(input_pdf_data)
 
     if result_pdf is None:
-        return
+        return JSONResponse(status_code=400, content={"message": "Translation failed"})
 
-    _, file_name = os.path.split(file_path)
-    output_path = os.path.join("output", file_name)
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, file.filename)
 
-    os.makedirs("output", exist_ok=True)
     with open(output_path, "wb") as f:
         f.write(result_pdf)
 
+    return JSONResponse(
+        status_code=200, content={"message": f"File saved at {output_path}"}
+    )
+
 
 if __name__ == "__main__":
-    asyncio.run(translate_local())
+    uvicorn.run(app, host="0.0.0.0", port=8000)
