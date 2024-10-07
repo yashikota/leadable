@@ -6,14 +6,19 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
     "en-core-web-sm",
-    "fastapi>=0.115.0",
+    "fastapi[standard]>=0.112.2",
     "ja-core-news-sm",
     "numpy<2",
     "ollama>=0.3.3",
     "pillow>=10.4.0",
     "pymupdf>=1.24.10",
-    "spacy==3.7.4",
+    "spacy==3.7.5",
     "tenacity>=9.0.0",
+]
+
+[tool.uv]
+dev-dependencies = [
+    "fastapi-cli>=0.0.5",
 ]
 
 [tool.uv.sources]

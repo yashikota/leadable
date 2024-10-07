@@ -1,9 +1,14 @@
 import asyncio
 import os
 
+from fastapi import FastAPI
+
 from translate import pdf_translate
 
+app = FastAPI()
 
+
+@app.get("/")
 async def translate_local():
     file_name = "test.pdf"
     file_path = os.path.join("testdata", file_name)

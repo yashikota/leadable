@@ -2,10 +2,9 @@ import asyncio
 
 from tenacity import retry, stop_after_attempt, wait_fixed
 
-from pdf_edit import (create_viewing_pdf,
-                              extract_text_coordinates_dict,
-                              preprocess_write_blocks, remove_blocks,
-                              remove_textbox_for_pdf, write_pdf_text)
+from pdf_edit import (create_viewing_pdf, extract_text_coordinates_dict,
+                      preprocess_write_blocks, remove_blocks,
+                      remove_textbox_for_pdf, write_pdf_text)
 from translate_ollama import translate_str_data_with_ollama
 
 
