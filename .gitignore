@@ -173,8 +173,11 @@ poetry.toml
 # LSP config files
 pyrightconfig.json
 
-# misc
+# ollama
 .ollama/
+models/
+
+# misc
 testdata/
 output/
 
