@@ -19,4 +19,4 @@ docker compose up --build
 2. `ollama pull lucas2024/gemma-2-2b-jpn-it:q8_0`
 3. Install [uv](https://github.com/astral-sh/uv)
 4. `uv sync`
-5. `uvuv run fastapi dev backend/src/main.py`
+5. `uv run fastapi dev backend/src/main.py`
