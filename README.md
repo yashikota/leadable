@@ -7,6 +7,12 @@
 
 利用中のモデル「[gemma-2-2b-jpn-it:q8_0](https://ollama.com/lucas2024/gemma-2-2b-jpn-it:q8_0)」で推論可能なメモリが必要
 
+## Docker
+
+```sh
+docker compose up --build
+```
+
 ## 利用方法
 
 1. [Ollama](https://ollama.com)をインストール

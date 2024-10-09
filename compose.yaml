@@ -1,0 +1,45 @@
+services:
+  leadable:
+    build:
+      context: .
+    container_name: leadable
+    ports:
+      - "8000:8000"
+    environment:
+      - TZ=Asia/Tokyo
+    develop:
+      watch:
+        - action: sync
+          path: .
+          target: /app
+          ignore:
+            - .venv/
+        - action: rebuild
+          path: ./pyproject.toml
+
+  ollama:
+      image: ollama/ollama:0.3.12
+      container_name: leadable-ollama
+      environment:
+        - TZ=Asia/Tokyo
+      volumes:
+        - type: bind
+          source: models
+          target: /usr/share/ollama/.ollama/models
+        - type: bind
+          source: .ollama
+          target: /root/.ollama
+      ports:
+        - "11434:11434"
+      restart: unless-stopped
+      deploy:
+        resources:
+          reservations:
+            devices:
+              - driver: nvidia
+                count: 1
+                capabilities: [gpu]
+
+volumes:
+  leadable:
+  ollama:
