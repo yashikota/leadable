@@ -40,6 +40,26 @@ services:
                 count: 1
                 capabilities: [gpu]
 
+  frontend:
+    container_name: leadable-webapp
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    command: yarn serve
+    stdin_open: true
+    tty: true
+    env_file: .env
+    environment:
+      TZ: Asia/Tokyo
+      PATH: /home/node/.yarn/bin:/home/node/.config/yarn/global/node_modules/.bin:$PATH
+    ports:
+      - 8080:8080
+    volumes:
+      - type: bind
+        source: frontend
+        target: /app
+
 volumes:
   leadable:
   ollama:
+  frontend:
