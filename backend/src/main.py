@@ -1,15 +1,35 @@
+import logging
 import os
 
-import uvicorn
+import model
+import utils
 from fastapi import FastAPI, File, UploadFile
-from fastapi.responses import JSONResponse
-
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from translate import pdf_translate
 
-app = FastAPI()
+tags_metadata = [
+    {
+        "name": "api",
+    },
+    {
+        "name": "models",
+    },
+]
+
+app = FastAPI(openapi_tags=tags_metadata)
+logger = logging.getLogger(__name__)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://192.168.0.130:8080"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
-@app.post("/translate/")
+@app.post("/translate/", tags=["api"])
 async def translate_local(file: UploadFile = File(...)):
     input_pdf_data = await file.read()
 
@@ -30,5 +50,22 @@ async def translate_local(file: UploadFile = File(...)):
     )
 
 
-if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+@app.get("/download/{filename}", tags=["api"])
+async def download(filename: str):
+    output_dir = "output"
+    os.makedirs(output_dir, exist_ok=True)
+    output_path = os.path.join(output_dir, filename)
+    if not os.path.exists(output_path):
+        return JSONResponse(status_code=404, content={"message": "File not found"})
+
+    return FileResponse(output_path, media_type="application/pdf", filename=filename)
+
+
+@app.get("/models", tags=["models"])
+async def show_models():
+    return await model.show_models()
+
+
+@app.get("/models/{model_name}", tags=["models"])
+async def download_model(model_name: str):
+    return await model.download_model(utils.decode_url(model_name))
