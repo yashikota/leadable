@@ -7,7 +7,6 @@ from io import BytesIO
 
 import fitz  # PyMuPDF
 import numpy as np
-
 from spacy_api import tokenize_text
 
 
@@ -254,10 +253,10 @@ async def preprocess_write_blocks(block_info, to_lang="ja"):
 
     # フォント選択
     if to_lang == "en":
-        font_path = "fonts/TIMES.TTF"
+        font_path = "backend/fonts/TIMES.TTF"
         a_text = "a"
     elif to_lang == "ja":
-        font_path = "fonts/MSMINCHO.TTC"
+        font_path = "backend/fonts/MSMINCHO.TTC"
         a_text = "あ"
 
     # フォントサイズを逆算+ブロックごとにテキストを分割
@@ -361,9 +360,9 @@ async def write_pdf_text(
 
     # フォント選択
     if to_lang == "en" and font_path == None:
-        font_path = "fonts/TIMES.TTF"
+        font_path = "backend/fonts/TIMES.TTF"
     elif to_lang == "ja":
-        font_path = "fonts/MSMINCHO.TTC"
+        font_path = "backend/fonts/MSMINCHO.TTC"
 
     doc = await asyncio.to_thread(fitz.open, stream=input_pdf_data, filetype="pdf")
 
