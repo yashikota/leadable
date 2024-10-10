@@ -8,7 +8,7 @@ services:
       - "8989:8000"
     environment:
       - TZ=Asia/Tokyo
-    env_file: .env
+      - OLLAMA_HOST_URL=${OLLAMA_HOST_URL}
     healthcheck:
       test: curl -f http://localhost:8000/health || exit 1
       interval: 10s
@@ -60,9 +60,9 @@ services:
       context: ./frontend
       dockerfile: Dockerfile
     command: npm run dev -- --host "0.0.0.0"
-    env_file: .env
     environment:
       - TZ=Asia/Tokyo
+      - VITE_LEADABLE_API_URL=${VITE_LEADABLE_API_URL}
     ports:
       - 5173:5173
     volumes:

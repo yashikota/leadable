@@ -39,12 +39,20 @@ docker compose up --build
 docker compose up -d --build
 ```
 
+## オプション
+
+OllamaのサーバーのURLとバックエンドのAPIのURLは環境変数を定義することで任意に変更可能です。  
+
+```txt
+OLLAMA_HOST_URL="http://localhost:8080"
+VITE_LEADABLE_API_URL="http://localhost:8080"
+```
+
 ## ファイル構造
 
 * `/api` バックエンド
 * `/frontend` フロントエンド
 * `/docs` ドキュメント
-* `.env.sample` .envのサンプル（実行時はこのファイルに従って，必ず `.env` を配置すること）
 * `compose.yaml` Docker Compose起動用
 
 ## 技術スタック
