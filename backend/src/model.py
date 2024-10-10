@@ -2,7 +2,7 @@ import os
 
 from ollama import Client
 
-client = Client(host=os.environ.get("OLLAMA_HOST", "http://localhost:11434"))
+client = Client(host=os.environ.get("OLLAMA_HOST", "http://ollama:11434"))
 
 
 async def show_models():
