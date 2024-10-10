@@ -7,6 +7,7 @@ services:
       - "8000:8000"
     environment:
       - TZ=Asia/Tokyo
+    env_file: .env
     develop:
       watch:
         - action: sync
@@ -23,9 +24,6 @@ services:
       environment:
         - TZ=Asia/Tokyo
       volumes:
-        - type: bind
-          source: models
-          target: /usr/share/ollama/.ollama/models
         - type: bind
           source: .ollama
           target: /root/.ollama
