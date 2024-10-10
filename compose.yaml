@@ -2,6 +2,7 @@ services:
   leadable:
     build:
       context: ./backend
+      dockerfile: Dockerfile
     container_name: leadable
     ports:
       - "8000:8000"
