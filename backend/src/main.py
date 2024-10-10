@@ -15,6 +15,9 @@ tags_metadata = [
     {
         "name": "models",
     },
+    {
+        "name": "status",
+    }
 ]
 
 app = FastAPI(openapi_tags=tags_metadata)
@@ -69,3 +72,7 @@ async def show_models():
 @app.get("/models/{model_name}", tags=["models"])
 async def download_model(model_name: str):
     return await model.download_model(utils.decode_url(model_name))
+
+@app.get("/health", tags=["status"])
+async def health_check():
+    return await utils.health_check()
