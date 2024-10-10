@@ -1,7 +1,7 @@
 services:
   leadable:
     build:
-      context: .
+      context: ./backend
     container_name: leadable
     ports:
       - "8000:8000"
