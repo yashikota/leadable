@@ -10,6 +10,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     UV_COMPILE_BYTECODE=1 \
     UV_LINK_MODE=copy
 
+RUN apt-get update && apt-get install -y curl
+
 WORKDIR /app
 
 RUN --mount=type=cache,target=/root/.cache/uv \

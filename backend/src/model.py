@@ -6,8 +6,13 @@ client = Client(host=os.environ.get("OLLAMA_HOST", "http://ollama:11434"))
 
 
 async def show_models():
-    return client.list()
-
+    try:
+        return client.list()
+    except Exception as e:
+        return {"error": str(e)}
 
 async def download_model(model_name: str) -> dict:
-    return client.pull(model_name)
+    try:
+        return client.pull(model_name)
+    except Exception as e:
+        return {"error": str(e)}

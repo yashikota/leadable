@@ -1,14 +1,23 @@
 services:
-  leadable:
+  backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
-    container_name: leadable
+    container_name: backend
     ports:
-      - "8000:8000"
+      - "8989:8000"
     environment:
       - TZ=Asia/Tokyo
     env_file: .env
+    healthcheck:
+      test: curl -f http://localhost:8000/health || exit 1
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
+    depends_on:
+      ollama:
+        condition: service_healthy
     develop:
       watch:
         - action: sync
@@ -21,7 +30,7 @@ services:
 
   ollama:
       image: ollama/ollama:0.3.12
-      container_name: leadable-ollama
+      container_name: ollama
       environment:
         - TZ=Asia/Tokyo
       volumes:
@@ -31,6 +40,12 @@ services:
       ports:
         - "11434:11434"
       restart: unless-stopped
+      healthcheck:
+        test: ollama list || exit 1
+        interval: 10s
+        timeout: 30s
+        retries: 5
+        start_period: 10s
       deploy:
         resources:
           reservations:
@@ -40,25 +55,25 @@ services:
                 capabilities: [gpu]
 
   frontend:
-    container_name: leadable-webapp
+    container_name: frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    command: yarn serve
-    stdin_open: true
-    tty: true
+    command: npm run dev -- --host "0.0.0.0"
     env_file: .env
     environment:
-      TZ: Asia/Tokyo
-      PATH: /home/node/.yarn/bin:/home/node/.config/yarn/global/node_modules/.bin:$PATH
+      - TZ=Asia/Tokyo
     ports:
-      - 8080:8080
+      - 5173:5173
     volumes:
       - type: bind
-        source: frontend
+        source: ./frontend
         target: /app
+    depends_on:
+      backend:
+        condition: service_healthy
 
 volumes:
-  leadable:
+  backend:
   ollama:
   frontend:
