@@ -5,10 +5,10 @@ services:
       dockerfile: Dockerfile
     container_name: backend
     ports:
-      - "8989:8000"
+      - "8000:8000"
     environment:
       - TZ=Asia/Tokyo
-      - OLLAMA_HOST_URL=${OLLAMA_HOST_URL}
+      # - OLLAMA_HOST_URL=${OLLAMA_HOST_URL}
     healthcheck:
       test: curl -f http://localhost:8000/health || exit 1
       interval: 10s
@@ -29,40 +29,40 @@ services:
           path: ./pyproject.toml
 
   ollama:
-      image: ollama/ollama:0.3.12
-      container_name: ollama
-      environment:
-        - TZ=Asia/Tokyo
-      volumes:
-        - type: bind
-          source: .ollama
-          target: /root/.ollama
-      ports:
-        - "11434:11434"
-      restart: unless-stopped
-      healthcheck:
-        test: ollama list || exit 1
-        interval: 10s
-        timeout: 30s
-        retries: 5
-        start_period: 10s
-      deploy:
-        resources:
-          reservations:
-            devices:
-              - driver: nvidia
-                count: 1
-                capabilities: [gpu]
+    image: ollama/ollama:0.3.12
+    container_name: ollama
+    environment:
+      - TZ=Asia/Tokyo
+    volumes:
+      - type: bind
+        source: .ollama
+        target: /root/.ollama
+    ports:
+      - "11434:11434"
+    restart: unless-stopped
+    healthcheck:
+      test: ollama list || exit 1
+      interval: 10s
+      timeout: 30s
+      retries: 5
+      start_period: 10s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [ gpu ]
 
   frontend:
     container_name: frontend
     build:
       context: ./frontend
       dockerfile: Dockerfile
-    command: npm run dev -- --host "0.0.0.0"
+    command: npm run dev
     environment:
       - TZ=Asia/Tokyo
-      - VITE_LEADABLE_API_URL=${VITE_LEADABLE_API_URL}
+      # - VITE_LEADABLE_API_URL=${VITE_LEADABLE_API_URL}
     ports:
       - 5173:5173
     volumes:

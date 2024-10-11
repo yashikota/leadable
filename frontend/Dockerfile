@@ -10,9 +10,9 @@ WORKDIR /app
 RUN --mount=type=cache,target=/tmp/.npm-cache \
     --mount=type=bind,source=package.json,target=package.json \
     --mount=type=bind,source=package-lock.json,target=package-lock.json \
-    npm ci --cache /tmp/.npm-cache --prefer-offline --only=production
+    npm ci --cache /tmp/.npm-cache --prefer-offline --production=false
 
 COPY . /app
 
 RUN --mount=type=cache,target=/tmp/.npm-cache \
-    npm ci --cache /tmp/.npm-cache --prefer-offline --only=production
+    npm ci --cache /tmp/.npm-cache --prefer-offline --production=false

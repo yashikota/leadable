@@ -44,8 +44,8 @@ docker compose up -d --build
 OllamaのサーバーのURLとバックエンドのAPIのURLは環境変数を定義することで任意に変更可能です。  
 
 ```txt
-OLLAMA_HOST_URL="http://localhost:8080"
-VITE_LEADABLE_API_URL="http://localhost:8080"
+OLLAMA_HOST_URL="http://localhost:8000"
+VITE_LEADABLE_API_URL="http://localhost:5173"
 ```
 
 ## ファイル構造

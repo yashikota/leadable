@@ -7,7 +7,7 @@ const App: React.FC = () => {
     const [file, setFile] = useState<File | null>(null);
     const [isTranslate, setIsTranslate] = useState(false);
 
-    const apiBaseUrl = import.meta.env.VITE_LEADABLE_API_URL || "http://localhost:8989";
+    const apiBaseUrl = import.meta.env.VITE_LEADABLE_API_URL || "http://localhost:8000";
 
     const dragEnter = () => {
         setIsEnter(true);
