@@ -97,7 +97,8 @@ const App: React.FC = () => {
 
     return (
         <div id="app">
-            <nav className="flex items-center justify-between bg-gray-800 text-white p-4">
+            <nav className="flex items-center p-4 bg-gray-800 text-white">
+                <img src="/icon.png" alt="Leadable" className="w-7 h-7 mr-2" />
                 <h1 className="text-2xl">Leadable</h1>
             </nav>
             <div className="container mx-auto p-4">
