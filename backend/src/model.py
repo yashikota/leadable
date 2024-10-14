@@ -11,6 +11,7 @@ async def show_models():
     except Exception as e:
         return {"error": str(e)}
 
+
 async def download_model(model_name: str) -> dict:
     try:
         return client.pull(model_name)

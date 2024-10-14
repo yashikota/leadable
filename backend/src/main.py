@@ -77,3 +77,8 @@ async def download_model(model_name: str):
 @app.get("/health", tags=["status"])
 async def health_check():
     return await utils.health_check()
+
+
+@app.get("/health/ollama", tags=["status"])
+async def health_check_ollama():
+    return await utils.health_check_ollama()
