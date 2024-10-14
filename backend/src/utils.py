@@ -1,5 +1,8 @@
+import os
 import urllib.parse
 import urllib.request
+
+from model import url
 
 
 def decode_url(url: str) -> str:
@@ -11,9 +14,8 @@ async def health_check():
 
 
 async def health_check_ollama():
-    url = "http://ollama:11434"
     try:
-        urllib.request.urlopen(url)
-        return {"status": "ok"}
+        with urllib.request.urlopen(url) as res:
+            return {"message": res.read().decode("utf-8")}
     except Exception as e:
         return {"error": str(e)}

@@ -1,7 +1,7 @@
 import re
 from textwrap import dedent
 
-import ollama
+from model import client
 
 
 def text_pre_processing(text: str) -> str:
@@ -28,7 +28,7 @@ async def chat_with_ollama(
     try:
         processed_system_prompt = text_pre_processing(system_prompt)
         processed_user_prompt = text_pre_processing(user_prompt)
-        response = ollama.chat(
+        response = client.chat(
             model="lucas2024/gemma-2-2b-jpn-it:q8_0",  # specify the model that supports chat completions
             messages=[
                 {"role": "system", "content": processed_system_prompt},

@@ -25,7 +25,7 @@ async def translate_blocks(blocks: str, target_lang: str):
         else:
             raise Exception(translated_text["message"])
 
-    def print_progress():
+    def print_progress(_=None):
         """
         翻訳進捗状況表示
         """

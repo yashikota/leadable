@@ -9,6 +9,10 @@ services:
     environment:
       - TZ=Asia/Tokyo
       # - OLLAMA_HOST_URL=${OLLAMA_HOST_URL}
+    volumes:
+      - type: bind
+        source: ./output
+        target: /app/output
     healthcheck:
       test: curl -f http://localhost:8000/health || exit 1
       interval: 10s
