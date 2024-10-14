@@ -30,13 +30,19 @@
 あらかじめBuildKitを有効化したDocker環境を用意してください。  
 
 ```sh
-docker compose up --build
+make run
 ```
 
 ※バックグラウンドで動作させる場合は
 
 ```sh
-docker compose up -d --build
+make run-d
+```
+
+終了する場合は
+
+```sh
+make down
 ```
 
 ## オプション
