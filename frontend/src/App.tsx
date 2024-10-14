@@ -6,6 +6,7 @@ const App: React.FC = () => {
     const [error, setError] = useState("");
     const [file, setFile] = useState<File | null>(null);
     const [isTranslate, setIsTranslate] = useState(false);
+    const [isLoading, setIsLoading] = useState(false);
 
     const apiBaseUrl = import.meta.env.VITE_LEADABLE_API_URL || "http://localhost:8000";
 
@@ -43,6 +44,7 @@ const App: React.FC = () => {
         const formData = new FormData();
         formData.append("file", file);
 
+        setIsLoading(true);
         try {
             const response = await fetch(`${apiBaseUrl}/translate`, {
                 method: "POST",
@@ -58,11 +60,14 @@ const App: React.FC = () => {
             }
         } catch (err) {
             setError("Error translating file");
+        } finally {
+            setIsLoading(false);
         }
     };
 
     const download = async () => {
         if (!file) return;
+        setIsLoading(true);
         try {
             const response = await fetch(
                 `${apiBaseUrl}/download/${file.name}`,
@@ -85,6 +90,8 @@ const App: React.FC = () => {
             link.remove();
         } catch (err) {
             setError("Error downloading file");
+        } finally {
+            setIsLoading(false);
         }
     };
 
@@ -115,7 +122,8 @@ const App: React.FC = () => {
                     id="translate"
                     onClick={translate}
                     type="button"
-                    className="bg-indigo-600 rounded-lg p-2 mb-4 w-full text-white hover:bg-indigo-500"
+                    disabled={isLoading}
+                    className="bg-indigo-600 rounded-lg p-2 mb-4 w-full text-white hover:bg-indigo-500 disabled:bg-indigo-300"
                 >
                     Translate
                 </button>
@@ -124,10 +132,16 @@ const App: React.FC = () => {
                         id="download"
                         onClick={download}
                         type="button"
-                        className="bg-sky-600 rounded-lg p-2 mb-4 w-full text-white hover:bg-indigo-500"
+                        disabled={isLoading}
+                        className="bg-sky-600 rounded-lg p-2 mb-4 w-full text-white hover:bg-indigo-500 disabled:bg-sky-300"
                     >
                         Download translated file
                     </button>
+                )}
+                {isLoading && (
+                    <div className="flex justify-center" aria-label="読み込み中">
+                        <div className="animate-spin h-10 w-10 border-4 border-blue-500 rounded-full border-t-transparent"></div>
+                    </div>
                 )}
             </div>
         </div>
