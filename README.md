@@ -54,13 +54,6 @@ OLLAMA_HOST_URL="http://localhost:8000"
 VITE_LEADABLE_API_URL="http://localhost:5173"
 ```
 
-## ファイル構造
-
-* `/api` バックエンド
-* `/frontend` フロントエンド
-* `/docs` ドキュメント
-* `compose.yaml` Docker Compose起動用
-
 ## 技術スタック
 
 ### バックエンド
