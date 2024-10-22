@@ -73,6 +73,9 @@ services:
       - type: bind
         source: ./frontend
         target: /app
+      - type: volume
+        source: node_modules
+        target: /app/node_modules
     depends_on:
       backend:
         condition: service_healthy
@@ -81,3 +84,4 @@ volumes:
   backend:
   ollama:
   frontend:
+  node_modules:
