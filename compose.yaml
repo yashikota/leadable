@@ -22,6 +22,12 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
+      db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
     develop:
       watch:
         - action: sync
@@ -31,6 +37,24 @@ services:
             - .venv/
         - action: rebuild
           path: ./pyproject.toml
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend-worker
+    command: python /app/src/worker.py
+    environment:
+      - TZ=Asia/Tokyo
+    volumes:
+      - type: bind
+        source: ./output
+        target: /app/output
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      ollama:
+        condition: service_healthy
 
   ollama:
     image: ollama/ollama:0.3.12
@@ -80,8 +104,84 @@ services:
       backend:
         condition: service_healthy
 
+  db:
+    image: postgres:16.4
+    container_name: db
+    restart: always
+    user: postgres
+    volumes:
+      - type: volume
+        source: db-data
+        target: /var/lib/postgresql/data
+    environment:
+      - POSTGRES_DB=leadable
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - TZ=Asia/Tokyo
+    expose:
+      - 5432
+    healthcheck:
+      test: [ "CMD", "pg_isready" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  pgweb:
+    image: sosedoff/pgweb:0.16.1
+    container_name: pgweb
+    ports:
+      - "8081:8081"
+    environment:
+      - PGWEB_DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/leadable?sslmode=disable
+      - TZ=Asia/Tokyo
+    depends_on:
+      db:
+        condition: service_healthy
+
+  rabbitmq:
+    image: rabbitmq:4.0.2-management-alpine
+    container_name: rabbitmq
+    ports:
+        - 5672:5672
+        - 15672:15672
+    volumes:
+      - type: volume
+        source: rabbitmq-data
+        target: /var/lib/rabbitmq
+      - type: bind
+        source: rabbitmq-log
+        target: /var/log/rabbitmq
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 30s
+      retries: 3
+
+  minio:
+    image: quay.io/minio/minio:RELEASE.2024-10-13T13-34-11Z
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - TZ=Asia/Tokyo
+      - MINIO_ROOT_USER=root
+      - MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    volumes:
+      - type: volume
+        source: minio-data
+        target: /data
+    command: server /data --console-address ":9001"
+
 volumes:
   backend:
   ollama:
   frontend:
   node_modules:
+  db-data:
+  minio-data:
+  rabbitmq-data:

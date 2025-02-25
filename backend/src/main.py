@@ -1,8 +1,10 @@
 import logging
 import os
+import base64
 
 import model
 import utils
+import rabbitmq
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
@@ -36,20 +38,18 @@ app.add_middleware(
 async def translate_local(file: UploadFile = File(...)):
     input_pdf_data = await file.read()
 
-    result_pdf = await pdf_translate(input_pdf_data)
+    # Convert bytes to base64 for JSON serialization
+    pdf_data_base64 = base64.b64encode(input_pdf_data).decode()
 
-    if result_pdf is None:
-        return JSONResponse(status_code=400, content={"message": "Translation failed"})
-
-    output_dir = "output"
-    os.makedirs(output_dir, exist_ok=True)
-    output_path = os.path.join(output_dir, file.filename)
-
-    with open(output_path, "wb") as f:
-        f.write(result_pdf)
+    # Queue the translation job
+    await rabbitmq.publish_message("translation_queue", {
+        "pdf_data": pdf_data_base64,
+        "filename": file.filename
+    })
 
     return JSONResponse(
-        status_code=200, content={"message": f"File saved at {output_path}"}
+        status_code=202,
+        content={"message": "Translation job queued", "filename": file.filename}
     )
 
 
