@@ -1,18 +1,18 @@
-ARG NODE_VERSION=22
-FROM node:${NODE_VERSION}-alpine3.19
-ENV NODE_ENV=development \
-    NPM_CONFIG_LOGLEVEL=warn \
-    NPM_CONFIG_COLOR=false \
-    NPM_CACHE_FOLDER=/tmp/.npm-cache
-
+FROM node:22-slim AS base
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+RUN corepack enable
+COPY . /app
 WORKDIR /app
 
-RUN --mount=type=cache,target=/tmp/.npm-cache \
-    --mount=type=bind,source=package.json,target=package.json \
-    --mount=type=bind,source=package-lock.json,target=package-lock.json \
-    npm ci --cache /tmp/.npm-cache --prefer-offline
+FROM base AS prod-deps
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
-COPY . /app
+FROM base AS build
+RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
+RUN pnpm run build
 
-RUN --mount=type=cache,target=/tmp/.npm-cache \
-    npm ci --cache /tmp/.npm-cache --prefer-offline
+FROM busybox:1.37
+COPY --from=build /app/dist /public
+EXPOSE 8888
+CMD ["busybox", "httpd", "-f", "-p", "8888", "-h", "/public"]

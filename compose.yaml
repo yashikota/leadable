@@ -9,10 +9,6 @@ services:
     environment:
       - TZ=Asia/Tokyo
       # - OLLAMA_HOST_URL=${OLLAMA_HOST_URL}
-    volumes:
-      - type: bind
-        source: ./output
-        target: /app/output
     healthcheck:
       test: curl -f http://localhost:8000/health || exit 1
       interval: 10s
@@ -37,24 +33,6 @@ services:
             - .venv/
         - action: rebuild
           path: ./pyproject.toml
-
-  worker:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
-    container_name: backend-worker
-    command: python /app/src/worker.py
-    environment:
-      - TZ=Asia/Tokyo
-    volumes:
-      - type: bind
-        source: ./output
-        target: /app/output
-    depends_on:
-      rabbitmq:
-        condition: service_healthy
-      ollama:
-        condition: service_healthy
 
   ollama:
     image: ollama/ollama:0.3.12
@@ -85,57 +63,51 @@ services:
   frontend:
     container_name: frontend
     build:
-      context: ./frontend
+      context: frontend
       dockerfile: Dockerfile
-    command: npm run dev
+    command: pnpm dev
     environment:
       - TZ=Asia/Tokyo
       # - VITE_LEADABLE_API_URL=${VITE_LEADABLE_API_URL}
     ports:
       - 5173:5173
-    volumes:
-      - type: bind
-        source: ./frontend
-        target: /app
-      - type: volume
-        source: node_modules
-        target: /app/node_modules
     depends_on:
       backend:
         condition: service_healthy
 
   db:
-    image: postgres:16.4
-    container_name: db
+    image: mongo:8.0.5
+    container_name: "mongodb"
     restart: always
-    user: postgres
+    ports:
+      - 27017:27017
     volumes:
       - type: volume
-        source: db-data
-        target: /var/lib/postgresql/data
+        source: mongodb-data
+        target: /data/db
     environment:
-      - POSTGRES_DB=leadable
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - TZ=Asia/Tokyo
-    expose:
-      - 5432
+      - MONGO_INITDB_ROOT_USERNAME=root
+      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     healthcheck:
-      test: [ "CMD", "pg_isready" ]
-      interval: 10s
-      timeout: 5s
-      retries: 5
+      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      interval: 30s
+      timeout: 30s
+      retries: 3
 
-  pgweb:
-    image: sosedoff/pgweb:0.16.1
-    container_name: pgweb
+  mongo-express:
+    image: mongo-express:1.0.2
+    container_name: mongo-express
+    restart: always
     ports:
-      - "8081:8081"
+      - 8081:8081
     environment:
-      - PGWEB_DATABASE_URL=postgres://postgres:${POSTGRES_PASSWORD}@db:5432/leadable?sslmode=disable
       - TZ=Asia/Tokyo
+      - ME_CONFIG_MONGODB_ADMINUSERNAME=root
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
+      - ME_CONFIG_MONGODB_SERVER=db
     depends_on:
-      db:
-        condition: service_healthy
+      - db
 
   rabbitmq:
     image: rabbitmq:4.0.2-management-alpine
@@ -178,10 +150,7 @@ services:
     command: server /data --console-address ":9001"
 
 volumes:
-  backend:
   ollama:
-  frontend:
-  node_modules:
-  db-data:
+  mongodb-data:
   minio-data:
   rabbitmq-data:
