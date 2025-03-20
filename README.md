@@ -37,10 +37,9 @@ make down
 
 開発環境のツール管理には[aqua](https://aquaproj.github.io)を使用しています。  
 
-1. aquaのインストール
-   [公式サイトのinstal](https://aquaproj.github.io/docs/install)を参考にインストールしてください。  
+1. [公式サイトのinstal](https://aquaproj.github.io/docs/install)を参考にインストールしてください。  
 2. `aqua i -l` を実行
-3. `docker`, `ollama`, `pnpm`, `uv`が使用可能になります。  
+3. `docker`, `ollama`, `pnpm`, `uv`, `biome`が使用可能になります。  
 
 ### オプション
 
