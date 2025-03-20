@@ -115,50 +115,34 @@ async def pdf_translate(pdf_data, source_lang="en", to_lang="ja"):
     text_blocks, fig_blocks, _ = await remove_blocks(block_info, 10, lang=source_lang)
 
     # 翻訳部分を消去したPDFデータを制作
-    removed_textbox_pdf_data = await remove_textbox_for_pdf(pdf_data, text_blocks)
-    removed_textbox_pdf_data = await remove_textbox_for_pdf(
-        removed_textbox_pdf_data, fig_blocks
-    )
+    all_blocks = text_blocks + fig_blocks
+    removed_textbox_pdf_data = await remove_textbox_for_pdf(pdf_data, all_blocks)
     print("1. Generate removed_textbox_pdf_data")
 
     # 翻訳前のブロック準備
-    preprocess_text_blocks = await preprocess_translation_blocks(
-        text_blocks, (".", ":", ";"), True
-    )
-    preprocess_fig_blocks = await preprocess_translation_blocks(
-        fig_blocks, (".", ":", ";"), False
+    preprocess_all_blocks = await preprocess_translation_blocks(
+        all_blocks, (".", ":", ";"), True
     )
     print("2. Generate Prepress_blocks")
 
     # 翻訳実施
-    translate_text_blocks = await translate_blocks(preprocess_text_blocks, to_lang)
-    translate_fig_blocks = await translate_blocks(preprocess_fig_blocks, to_lang)
+    translated_all_blocks = await translate_blocks(preprocess_all_blocks, to_lang)
     print("3. translated blocks")
 
     # pdf書き込みデータ作成
-    write_text_blocks = await preprocess_write_blocks(translate_text_blocks, to_lang)
-    write_fig_blocks = await preprocess_write_blocks(translate_fig_blocks, to_lang)
+    write_all_blocks = await preprocess_write_blocks(translated_all_blocks, to_lang)
     print("4. Generate wirte Blocks")
 
     # pdfの作成
     translated_pdf_data = None
-    if write_text_blocks != []:
+    if write_all_blocks != []:
         print("write text to pdf.")
-        print(len(write_text_blocks))
+        print(len(write_all_blocks))
         translated_pdf_data = await write_pdf_text(
-            removed_textbox_pdf_data, write_text_blocks, to_lang
+            removed_textbox_pdf_data, write_all_blocks, to_lang
         )
     else:
         print("write text to pdf is empty.")
-        breakpoint()
-
-    if write_fig_blocks != []:
-        print("write fig to pdf.")
-        translated_pdf_data = await write_pdf_text(
-            translated_pdf_data, write_fig_blocks, to_lang
-        )
-    else:
-        print("write fig to pdf is empty.")
         breakpoint()
 
     # 見開き結合の実施

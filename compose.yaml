@@ -5,12 +5,14 @@ services:
       dockerfile: Dockerfile
     container_name: backend
     ports:
-      - "8000:8000"
+      - "8866:8000"
+    # env_file:
+    #   - .env
     environment:
       - TZ=Asia/Tokyo
       # - OLLAMA_HOST_URL=${OLLAMA_HOST_URL}
     healthcheck:
-      test: curl -f http://localhost:8000/health || exit 1
+      test: curl -f http://localhost:8000/health/backend || exit 1
       interval: 10s
       timeout: 30s
       retries: 5
@@ -35,7 +37,7 @@ services:
           path: ./pyproject.toml
 
   ollama:
-    image: ollama/ollama:0.3.12
+    image: ollama/ollama:0.6.2
     container_name: ollama
     environment:
       - TZ=Asia/Tokyo
@@ -65,35 +67,37 @@ services:
     build:
       context: frontend
       dockerfile: Dockerfile
-    command: pnpm dev
+    env_file:
+      - .env
     environment:
       - TZ=Asia/Tokyo
-      # - VITE_LEADABLE_API_URL=${VITE_LEADABLE_API_URL}
     ports:
-      - 5173:5173
+      - 8877:8877
     depends_on:
       backend:
         condition: service_healthy
 
   db:
     image: mongo:8.0.5
-    container_name: "mongodb"
+    container_name: mongo_db
     restart: always
+    env_file:
+      - .env
+    environment:
+      - TZ=Asia/Tokyo
+      - MONGO_INITDB_ROOT_USERNAME=root
     ports:
       - 27017:27017
     volumes:
       - type: volume
         source: mongodb-data
         target: /data/db
-    environment:
-      - TZ=Asia/Tokyo
-      - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
     healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongo localhost:27017/test --quiet
+      test: mongosh --eval "db.adminCommand('ping').ok" --quiet
       interval: 30s
       timeout: 30s
-      retries: 3
+      retries: 5
+      start_period: 60s
 
   mongo-express:
     image: mongo-express:1.0.2

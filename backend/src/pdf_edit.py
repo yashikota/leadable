@@ -136,7 +136,7 @@ def calculate_histogram_bins(marge_scores, n_neighbours=0) -> tuple:
     return res
 
 
-async def remove_blocks(block_info, token_threshold=15, debug=False, lang="en") -> list:
+async def remove_blocks(block_info, token_threshold=15, lang="en") -> list:
     """
     トークン数が指定された閾値以下のブロックをリストから削除し、
     幅300以上のパーセンタイルブロックをリストから消去します。

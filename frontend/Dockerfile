@@ -14,5 +14,5 @@ RUN pnpm run build
 
 FROM busybox:1.37
 COPY --from=build /app/dist /public
-EXPOSE 8888
-CMD ["busybox", "httpd", "-f", "-p", "8888", "-h", "/public"]
+EXPOSE 8877
+CMD ["busybox", "httpd", "-f", "-p", "8877", "-h", "/public"]

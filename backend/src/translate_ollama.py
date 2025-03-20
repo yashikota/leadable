@@ -1,7 +1,7 @@
 import re
 from textwrap import dedent
 
-from model import client
+from backend.src.service.llm import client
 
 
 def text_pre_processing(text: str) -> str:
