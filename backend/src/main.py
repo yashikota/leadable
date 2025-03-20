@@ -9,7 +9,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, File, UploadFile, Form, Query
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse
 from starlette.responses import StreamingResponse
 
 # Configure logging
@@ -43,6 +43,7 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing translation service...")
         # Import the function only when needed
         from backend.src.main import custom_translate_function
+
         mq_init_result = await initialize_translation_service(custom_translate_function)
         logger.info(f"Translation service initialization result: {mq_init_result}")
 
@@ -62,7 +63,7 @@ app = FastAPI(
     title="Translation API",
     description="API for file upload, translation, and download",
     lifespan=lifespan,
-    openapi_tags=tags_metadata
+    openapi_tags=tags_metadata,
 )
 
 # Add CORS middleware
@@ -73,6 +74,7 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
 
 # ==================== CUSTOM TRANSLATION FUNCTION ====================
 async def custom_translate_function(
@@ -113,7 +115,7 @@ async def custom_translate_function(
             model="llama3",  # or any other model
             prompt=prompt,
             system=system_prompt,
-            options={"temperature": 0.3}
+            options={"temperature": 0.3},
         )
 
         translated_text = response.get("response", "")
@@ -135,6 +137,7 @@ async def health_ollama():
     """Health check for the Ollama service"""
     try:
         from backend.src.utils import health_check_ollama
+
         return await health_check_ollama()
     except Exception as e:
         logger.error(f"Ollama health check error: {str(e)}")
@@ -146,6 +149,7 @@ async def health_db():
     """Health check for the database service"""
     try:
         from backend.src.utils import health_check_db
+
         return await health_check_db()
     except Exception as e:
         logger.error(f"DB health check error: {str(e)}")
@@ -157,6 +161,7 @@ async def health_mq():
     """Health check for the message queue service"""
     try:
         from backend.src.utils import health_check_mq
+
         return await health_check_mq()
     except Exception as e:
         logger.error(f"MQ health check error: {str(e)}")
@@ -169,7 +174,12 @@ async def health_all():
     backend = {"status": "ok"}
 
     try:
-        from backend.src.utils import health_check_ollama, health_check_db, health_check_mq
+        from backend.src.utils import (
+            health_check_ollama,
+            health_check_db,
+            health_check_mq,
+        )
+
         ollama = await health_check_ollama()
         db = await health_check_db()
         mq = await health_check_mq()
@@ -265,7 +275,7 @@ async def translate_file(
         return {
             "success": False,
             "error": str(e),
-            "message": "Failed to submit file translation request"
+            "message": "Failed to submit file translation request",
         }
 
 
@@ -275,6 +285,7 @@ async def get_status(task_id: str):
     try:
         # Import here to avoid potential circular imports
         from backend.src.service.mq import get_translation_status
+
         return await get_translation_status(task_id)
     except Exception as e:
         logger.error(f"Status check error for task {task_id}: {str(e)}")
@@ -291,6 +302,7 @@ async def get_all_statuses():
     try:
         # Import here to avoid potential circular imports
         from backend.src.service.mq import get_all_translation_statuses
+
         return await get_all_translation_statuses()
     except Exception as e:
         logger.error(f"Status list error: {str(e)}")
@@ -312,6 +324,7 @@ async def get_translations(
     try:
         # Import here to avoid potential circular imports
         from backend.src.service.db import get_translation_history
+
         return await get_translation_history(limit=limit, skip=skip, search_text=search)
     except Exception as e:
         logger.error(f"Translation history error: {str(e)}")
