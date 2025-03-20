@@ -5,27 +5,26 @@
 
 ## 使い方
 
-1. 翻訳したいPDFをエリアにドロップ
-   ![first look](docs/images/firstlook.png)
+1. 翻訳したいPDFをエリアにドロップ or クリックでファイルダイアログから選択
+   ![1](docs/images/1.png)
 
-2. 正しくPDFファイルが読み込まれた場合
-   ![upload](docs/images/upload.png)
+2. `PDFを翻訳` ボタンを押して翻訳を実行する
+   ![2](docs/images/2.png)
 
-3. PDFファイル以外をドロップした場合
-   ![error](docs/images/error.png)
-
-4. 「Translate」を押して翻訳をし，翻訳が完了したら「Download translated file」のボタンが現れる
-   ![translate](docs/images/translate.png)
+3. 翻訳が完了したら `ダウンロード` のボタンが現れる。また履歴に追加される。  
+   ![3](docs/images/3.png)
 
 ## 運用方法
 
-立ち上げ  
+開始  
 
 ```sh
-make run
+make up
 ```
 
-終了する場合は  
+`http://localhost:8877` にウェブアプリが立ち上がる。  
+
+終了  
 
 ```sh
 make down
@@ -37,17 +36,16 @@ make down
 
 開発環境のツール管理には[aqua](https://aquaproj.github.io)を使用しています。  
 
-1. [公式サイトのinstal](https://aquaproj.github.io/docs/install)を参考にインストールしてください。  
-2. `aqua i -l` を実行
-3. `docker`, `ollama`, `pnpm`, `uv`, `biome`が使用可能になります。  
+1. [公式サイトのinstal](https://aquaproj.github.io/docs/install)を参考にインストール  
+2. `aqua i -l`
 
 ### オプション
 
-OllamaのサーバーのURLとバックエンドのAPIのURLは環境変数を定義することで任意に変更可能です。  
+OllamaのサーバーのURLとバックエンドのAPIのURLは `.env` ファイルに定義することで任意に変更可能。  
 
 ```txt
-OLLAMA_HOST_URL="http://localhost:8000"
-VITE_LEADABLE_API_URL="http://localhost:5173"
+OLLAMA_HOST_URL="http://localhost:8434"
+VITE_LEADABLE_API_URL="http://localhost:8877"
 ```
 
 ### 技術スタック
