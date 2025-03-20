@@ -9,6 +9,7 @@ dependencies = [
     "en-core-web-sm",
     "fastapi[standard]>=0.112.2",
     "ja-core-news-sm",
+    "litellm>=1.63.12",
     "minio>=7.2.15",
     "numpy<2",
     "ollama>=0.3.3",

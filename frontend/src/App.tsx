@@ -2,17 +2,26 @@ import {
   type ChangeEvent,
   type DragEvent,
   type KeyboardEvent,
+  useCallback,
+  useEffect,
   useRef,
   useState,
 } from "react";
 import "./App.css";
 import {
+  Check,
   CircleCheckBig,
   CircleX,
   FileDown,
   FileUp,
+  GithubIcon,
+  Plus,
+  Save,
+  Settings,
   Trash2,
 } from "lucide-react";
+import Select from "react-select";
+import CreatableSelect from "react-select/creatable";
 
 const API_URL =
   import.meta.env.VITE_LEADABLE_API_URL || "http://localhost:8866";
@@ -24,6 +33,65 @@ interface TranslatedFile {
   timestamp: Date;
 }
 
+// Define available LLM providers and models
+interface LLMModel {
+  id: string;
+  name: string;
+}
+
+interface LLMProvider {
+  id: string;
+  name: string;
+  models: LLMModel[];
+}
+
+const llmProviders: LLMProvider[] = [
+  {
+    id: "openai",
+    name: "OpenAI",
+    models: [
+      { id: "gpt-4", name: "GPT-4" },
+      { id: "gpt-4o", name: "GPT-4o" },
+      { id: "o1", name: "o1" },
+      { id: "o1-mini", name: "o1-mini" },
+      { id: "o3-mini", name: "o3-mini" },
+    ],
+  },
+  {
+    id: "anthropic",
+    name: "Anthropic",
+    models: [
+      { id: "claude-2", name: "Claude 2" },
+      { id: "claude-instant", name: "Claude Instant" },
+    ],
+  },
+  {
+    id: "google",
+    name: "Google",
+    models: [
+      { id: "gemini-pro", name: "Gemini Pro" },
+      { id: "gemini-ultra", name: "Gemini Ultra" },
+    ],
+  },
+  {
+    id: "ollama",
+    name: "Ollama",
+    models: [
+      { id: "llama2", name: "Llama 2" },
+      { id: "mistral", name: "Mistral" },
+      { id: "codellama", name: "Code Llama" },
+      { id: "phi", name: "Phi" },
+      { id: "neural-chat", name: "Neural Chat" },
+    ],
+  },
+];
+
+// Define interface for react-select options
+interface SelectOption {
+  value: string;
+  label: string;
+}
+
 function App() {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -32,6 +100,66 @@ function App() {
   const [translationComplete, setTranslationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [translatedFiles, setTranslatedFiles] = useState<TranslatedFile[]>([]);
+  const [selectedProvider, setSelectedProvider] = useState<string>("openai");
+  const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
+  const [customModels, setCustomModels] = useState<LLMModel[]>([]);
+  const [newModelName, setNewModelName] = useState("");
+  const [isAddingModel, setIsAddingModel] = useState(false);
+  const [apiKeys, setApiKeys] = useState<Record<string, string>>({
+    openai: "",
+    anthropic: "",
+    google: "",
+  });
+  const [apiKeySaveStatus, setApiKeySaveStatus] = useState<
+    "saved" | "unsaved" | "saving"
+  >("saved");
+  const [apiKeyTimer, setApiKeyTimer] = useState<NodeJS.Timeout | null>(null);
+
+  // Load saved API keys on mount
+  useEffect(() => {
+    const loadApiKey = (provider: string) => {
+      const savedKey = localStorage.getItem(`leadable-api-key-${provider}`);
+      if (savedKey) {
+        setApiKeys((prev) => ({
+          ...prev,
+          [provider]: savedKey,
+        }));
+      }
+    };
+
+    // Load keys for each provider
+    llmProviders
+      .map((p) => p.id)
+      .filter((id) => id !== "ollama")
+      .forEach(loadApiKey);
+  }, []);
+
+  // Debounce save to localStorage
+  const debounceSaveApiKeys = useCallback(
+    (provider: string, key: string) => {
+      setApiKeySaveStatus("unsaved");
+
+      // Clear any existing timer
+      if (apiKeyTimer) {
+        clearTimeout(apiKeyTimer);
+      }
+
+      // Set a new timer
+      const timer = setTimeout(() => {
+        setApiKeySaveStatus("saving");
+        try {
+          localStorage.setItem(`leadable-api-key-${provider}`, key);
+          // Wait a short delay to show "saving" status before showing "saved"
+          setTimeout(() => setApiKeySaveStatus("saved"), 300);
+        } catch (error) {
+          console.error(`Failed to save API key for ${provider}`, error);
+        }
+      }, 1000); // Save after 1 second of inactivity
+
+      setApiKeyTimer(timer);
+    },
+    [apiKeyTimer],
+  );
 
   const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -154,6 +282,118 @@ function App() {
     }
   };
 
+  // Convert llmProviders models to react-select options
+  const getProviderOptions = (): SelectOption[] => {
+    return llmProviders.map((provider) => ({
+      value: provider.id,
+      label: provider.name,
+    }));
+  };
+
+  // Get all models for the selected provider as react-select options
+  const getModelOptions = (): SelectOption[] => {
+    const provider = llmProviders.find((p) => p.id === selectedProvider);
+    if (!provider) return [];
+
+    const modelOptions = provider.models.map((model) => ({
+      value: model.id,
+      label: model.name,
+    }));
+
+    // Add custom models for Ollama
+    if (selectedProvider === "ollama") {
+      const customModelOptions = customModels.map((model) => ({
+        value: model.id,
+        label: model.name,
+      }));
+      return [...modelOptions, ...customModelOptions];
+    }
+
+    return modelOptions;
+  };
+
+  const handleProviderChange = (option: SelectOption | null) => {
+    if (!option) return;
+
+    const newProvider = option.value;
+    setSelectedProvider(newProvider);
+
+    // Set default model for the selected provider
+    const provider = llmProviders.find((p) => p.id === newProvider);
+    if (provider && provider.models.length > 0) {
+      setSelectedModel(provider.models[0].id);
+    }
+  };
+
+  const handleModelChange = (option: SelectOption | null) => {
+    if (!option) return;
+    setSelectedModel(option.value);
+  };
+
+  // Handle creation of a new model option (only for Ollama)
+  const handleCreateModel = (inputValue: string) => {
+    if (!inputValue.trim() || selectedProvider !== "ollama") return;
+
+    const modelId = inputValue.trim().toLowerCase().replace(/\s+/g, "-");
+    const newModel = { id: modelId, name: inputValue.trim() };
+
+    // Add to custom models
+    setCustomModels((prev) => [...prev, newModel]);
+
+    // Select the new model
+    setSelectedModel(modelId);
+  };
+
+  const handleDeleteCustomModel = (modelId: string) => {
+    // Remove the model from customModels
+    setCustomModels((prev) => prev.filter((model) => model.id !== modelId));
+
+    // If the deleted model was selected, switch to the first default Ollama model
+    if (selectedModel === modelId) {
+      const defaultOllamaModel = llmProviders.find((p) => p.id === "ollama")
+        ?.models[0];
+      if (defaultOllamaModel) {
+        setSelectedModel(defaultOllamaModel.id);
+      }
+    }
+  };
+
+  // Find the current selected option
+  const getCurrentModelOption = (): SelectOption | undefined => {
+    return getModelOptions().find((option) => option.value === selectedModel);
+  };
+
+  const getCurrentProviderOption = (): SelectOption | undefined => {
+    return getProviderOptions().find(
+      (option) => option.value === selectedProvider,
+    );
+  };
+
+  const handleApiKeyChange = (e: ChangeEvent<HTMLInputElement>) => {
+    const { value } = e.target;
+
+    // Update state
+    setApiKeys((prev) => ({
+      ...prev,
+      [selectedProvider]: value,
+    }));
+
+    // Save to localStorage
+    debounceSaveApiKeys(selectedProvider, value);
+  };
+
+  // Render save status icon
+  const renderSaveStatus = () => {
+    switch (apiKeySaveStatus) {
+      case "saved":
+        return <Check size={16} className="text-success" />;
+      case "saving":
+        return <div className="loading loading-spinner loading-xs" />;
+      case "unsaved":
+        return <Save size={16} className="text-warning" />;
+    }
+  };
+
   return (
     <div className="min-h-screen bg-base-100">
       {/* Navbar */}
@@ -165,14 +405,20 @@ function App() {
           </div>
         </div>
         <div className="navbar-end">
-          <a href="/settings" className="btn btn-outline">
-            設定
+          <a
+            href="https://github.com/yashikota/leadable"
+            target="_blank"
+            className="btn btn-outline border-none"
+            rel="noreferrer"
+          >
+            <GithubIcon />
           </a>
         </div>
       </div>
 
       <div className="container mx-auto px-4 py-8 max-w-3xl">
-        <div className="card bg-base-100">
+        {/* Dropzone */}
+        <div className="card">
           <div className="card-body">
             <div
               className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${
@@ -216,13 +462,13 @@ function App() {
             </div>
 
             {error && (
-              <div className="alert alert-error mt-4">
+              <div className="alert alert-error bg-red-200 mt-2">
                 <CircleX size={24} />
                 <span>{error}</span>
               </div>
             )}
 
-            <div className="card-actions justify-center mt-6">
+            <div className="card-actions justify-center mt-2">
               {file && !translationComplete && (
                 <button
                   type="button"
@@ -269,13 +515,6 @@ function App() {
             <h2 className="text-xl font-bold mb-4">翻訳済みファイル一覧</h2>
             <div className="overflow-x-auto">
               <table className="table w-full">
-                <thead>
-                  <tr>
-                    <th>ファイル名</th>
-                    <th>日時</th>
-                    <th className="text-right">アクション</th>
-                  </tr>
-                </thead>
                 <tbody>
                   {translatedFiles.map((file) => (
                     <tr key={file.id} className="hover">
@@ -285,7 +524,7 @@ function App() {
                         <div className="join">
                           <button
                             type="button"
-                            className="btn btn-sm join-item"
+                            className="btn btn-sm border-none bg-none join-item hover:bg-gray-200"
                             onClick={() =>
                               handleDownloadFile(file.originalName)
                             }
@@ -295,7 +534,7 @@ function App() {
                           </button>
                           <button
                             type="button"
-                            className="btn btn-sm btn-error join-item ml-2"
+                            className="btn btn-sm btn-error border-none bg-none join-item ml-2 hover:bg-red-200"
                             onClick={() => handleDeleteFile(file.id)}
                             aria-label="削除"
                           >
@@ -310,6 +549,125 @@ function App() {
             </div>
           </div>
         )}
+
+        {/* Settings */}
+        <div className="card bg-slate-100 mt-8 rounded-box">
+          <div className="card-body">
+            <h3 className="card-title text-lg flex items-center gap-2">
+              <Settings size={18} />
+              LLM設定
+            </h3>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
+              <div className="form-control">
+                <label htmlFor="provider-select" className="label">
+                  <span className="label-text">プロバイダー</span>
+                </label>
+                <Select
+                  inputId="provider-select"
+                  className="basic-single"
+                  classNamePrefix="select"
+                  value={getCurrentProviderOption()}
+                  onChange={handleProviderChange}
+                  options={getProviderOptions()}
+                  isSearchable={false}
+                  placeholder="プロバイダーを選択"
+                />
+              </div>
+
+              <div className="form-control">
+                <label htmlFor="model-select" className="label">
+                  <span className="label-text">モデル</span>
+                </label>
+                {selectedProvider === "ollama" ? (
+                  <CreatableSelect
+                    inputId="model-select"
+                    className="basic-single"
+                    classNamePrefix="select"
+                    value={getCurrentModelOption()}
+                    onChange={handleModelChange}
+                    options={getModelOptions()}
+                    onCreateOption={handleCreateModel}
+                    placeholder="モデルを選択または追加"
+                    formatCreateLabel={(inputValue) => `"${inputValue}" を追加`}
+                  />
+                ) : (
+                  <Select
+                    inputId="model-select"
+                    className="basic-single"
+                    classNamePrefix="select"
+                    value={getCurrentModelOption()}
+                    onChange={handleModelChange}
+                    options={getModelOptions()}
+                    isSearchable={true}
+                    placeholder="モデルを選択"
+                  />
+                )}
+              </div>
+            </div>
+
+            {/* API Key Input (only for non-Ollama providers) */}
+            {selectedProvider !== "ollama" && (
+              <div className="mt-4">
+                <div className="form-control w-full">
+                  <label htmlFor="api-key-input" className="label">
+                    <span className="label-text">API キー</span>
+                    <span className="label-text-alt flex items-center gap-1">
+                      {apiKeySaveStatus === "saved"
+                        ? "保存済み"
+                        : apiKeySaveStatus === "saving"
+                          ? "保存中..."
+                          : "未保存"}
+                      {renderSaveStatus()}
+                    </span>
+                  </label>
+                  <div className="join w-full">
+                    <input
+                      id="api-key-input"
+                      type="password"
+                      placeholder="sk-*************************************"
+                      className="input input-bordered input-primary w-full bg-white"
+                      value={apiKeys[selectedProvider] || ""}
+                      onChange={handleApiKeyChange}
+                    />
+                  </div>
+                  <label htmlFor="api-key-input" className="label">
+                    <span className="label-text-alt text-base-content/70 mt-2">
+                      APIキーを入力してください。これはローカルに保存され、他のユーザーとは共有されません。
+                    </span>
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* Custom models list (only for Ollama) */}
+            {selectedProvider === "ollama" && customModels.length > 0 && (
+              <div className="mt-4">
+                <div className="text-sm font-medium mb-2">
+                  追加済みカスタムモデル
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {customModels.map((model) => (
+                    <div
+                      key={model.id}
+                      className="badge badge-outline gap-2 py-3"
+                    >
+                      {model.name}
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-circle btn-ghost"
+                        onClick={() => handleDeleteCustomModel(model.id)}
+                        aria-label="Delete custom model"
+                      >
+                        <CircleX size={14} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
       </div>
     </div>
   );
