@@ -1,8 +1,13 @@
 import asyncio
 
-from pdf_edit import (create_viewing_pdf, extract_text_coordinates_dict,
-                      preprocess_write_blocks, remove_blocks,
-                      remove_textbox_for_pdf, write_pdf_text)
+from pdf_edit import (
+    create_viewing_pdf,
+    extract_text_coordinates_dict,
+    preprocess_write_blocks,
+    remove_blocks,
+    remove_textbox_for_pdf,
+    write_pdf_text,
+)
 from tenacity import retry, stop_after_attempt, wait_fixed
 from translate_ollama import translate_str_data_with_ollama
 
@@ -82,7 +87,7 @@ async def preprocess_translation_blocks(
             if (
                 text.endswith(end_maker)
                 or block["block_no"] - temp_block_no <= 1
-                or end_maker_enable == False
+                or end_maker_enable is False
             ):
                 # マーカーがある場合格納
                 page_results.append(

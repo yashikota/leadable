@@ -8,7 +8,6 @@ import rabbitmq
 from fastapi import FastAPI, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, JSONResponse
-from translate import pdf_translate
 
 tags_metadata = [
     {
@@ -42,14 +41,13 @@ async def translate_local(file: UploadFile = File(...)):
     pdf_data_base64 = base64.b64encode(input_pdf_data).decode()
 
     # Queue the translation job
-    await rabbitmq.publish_message("translation_queue", {
-        "pdf_data": pdf_data_base64,
-        "filename": file.filename
-    })
+    await rabbitmq.publish_message(
+        "translation_queue", {"pdf_data": pdf_data_base64, "filename": file.filename}
+    )
 
     return JSONResponse(
         status_code=202,
-        content={"message": "Translation job queued", "filename": file.filename}
+        content={"message": "Translation job queued", "filename": file.filename},
     )
 
 

@@ -7,8 +7,10 @@ logger = logging.getLogger(__name__)
 
 RABBITMQ_URL = "amqp://guest:guest@rabbitmq:5672/"
 
+
 async def get_connection():
     return await aio_pika.connect_robust(RABBITMQ_URL)
+
 
 async def publish_message(queue_name: str, message: Dict[str, Any]):
     connection = await get_connection()
@@ -19,10 +21,11 @@ async def publish_message(queue_name: str, message: Dict[str, Any]):
         await channel.default_exchange.publish(
             aio_pika.Message(
                 body=json.dumps(message).encode(),
-                delivery_mode=aio_pika.DeliveryMode.PERSISTENT
+                delivery_mode=aio_pika.DeliveryMode.PERSISTENT,
             ),
-            routing_key=queue_name
+            routing_key=queue_name,
         )
+
 
 async def process_translation_queue():
     from translate import pdf_translate  # Import here to avoid circular imports
@@ -44,20 +47,22 @@ async def process_translation_queue():
 
                         if result_pdf:
                             # Publish result to completion queue
-                            await publish_message("translation_complete", {
-                                "filename": filename,
-                                "success": True
-                            })
+                            await publish_message(
+                                "translation_complete",
+                                {"filename": filename, "success": True},
+                            )
                         else:
-                            await publish_message("translation_complete", {
-                                "filename": filename,
-                                "success": False,
-                                "error": "Translation failed"
-                            })
+                            await publish_message(
+                                "translation_complete",
+                                {
+                                    "filename": filename,
+                                    "success": False,
+                                    "error": "Translation failed",
+                                },
+                            )
                     except Exception as e:
                         logger.error(f"Error processing translation: {str(e)}")
-                        await publish_message("translation_complete", {
-                            "filename": filename,
-                            "success": False,
-                            "error": str(e)
-                        })
+                        await publish_message(
+                            "translation_complete",
+                            {"filename": filename, "success": False, "error": str(e)},
+                        )

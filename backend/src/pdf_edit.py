@@ -215,7 +215,7 @@ async def remove_blocks(block_info, token_threshold=15, debug=False, lang="en") 
             i += 1
 
             if is_valid_block:
-                print(f"[INFO] to translate: {block["text"][:20]}")
+                print(f"[INFO] to translate: {block['text'][:20]}")
 
         text_blocks.append(page_text_blocks)
         fig_blocks.append(page_fig_table_blocks)
@@ -359,7 +359,7 @@ async def write_pdf_text(
     lh_factor = 1.5  # 行の高さの係数
 
     # フォント選択
-    if to_lang == "en" and font_path == None:
+    if to_lang == "en" and font_path is None:
         font_path = "fonts/TIMES.TTF"
     elif to_lang == "ja":
         font_path = "fonts/MSMINCHO.TTC"

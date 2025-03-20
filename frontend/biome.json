@@ -10,7 +10,8 @@
       "correctness": {
         "noUnknownProperty": "off"
       }
-    }
+    },
+    "ignore": [".next", "dist", "tsconfig*.json"]
   },
   "formatter": {
     "enabled": true,
