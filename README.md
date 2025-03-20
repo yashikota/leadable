@@ -16,7 +16,7 @@
 
 ## 運用方法
 
-開始  
+### 開始  
 
 ```sh
 make up
@@ -24,7 +24,7 @@ make up
 
 `http://localhost:8877` にウェブアプリが立ち上がる。  
 
-終了  
+### 終了  
 
 ```sh
 make down
@@ -32,32 +32,5 @@ make down
 
 ## 開発
 
-### セットアップ
-
-開発環境のツール管理には[aqua](https://aquaproj.github.io)を使用しています。  
-
-1. [公式サイトのinstal](https://aquaproj.github.io/docs/install)を参考にインストール  
+1. [aquaをインストール](https://aquaproj.github.io/docs/install)
 2. `aqua i -l`
-
-### オプション
-
-OllamaのサーバーのURLとバックエンドのAPIのURLは `.env` ファイルに定義することで任意に変更可能。  
-
-```txt
-OLLAMA_HOST_URL="http://localhost:8434"
-VITE_LEADABLE_API_URL="http://localhost:8877"
-```
-
-### 技術スタック
-
-#### バックエンド
-
-* Python
-* FastAPI
-
-#### フロントエンド
-
-* React
-* Vite
-* Tailwind
-* Daisy UI
