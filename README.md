@@ -6,16 +6,16 @@
 ## 使い方
 
 1. 翻訳したいPDFをエリアにドロップ
-   ![first look](images/firstlook.png)
+   ![first look](docs/images/firstlook.png)
 
 2. 正しくPDFファイルが読み込まれた場合
-   ![upload](images/upload.png)
+   ![upload](docs/images/upload.png)
 
 3. PDFファイル以外をドロップした場合
-   ![error](images/error.png)
+   ![error](docs/images/error.png)
 
 4. 「Translate」を押して翻訳をし，翻訳が完了したら「Download translated file」のボタンが現れる
-   ![translate](images/translate.png)
+   ![translate](docs/images/translate.png)
 
 ## 運用方法
 
