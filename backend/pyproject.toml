@@ -24,8 +24,13 @@ dependencies = [
 [tool.uv]
 dev-dependencies = [
     "fastapi-cli>=0.0.5",
+    "taskipy>=1.14.1",
 ]
 
 [tool.uv.sources]
 en-core-web-sm = { url = "https://github.com/explosion/spacy-models/releases/download/en_core_web_sm-3.7.1/en_core_web_sm-3.7.1.tar.gz" }
 ja-core-news-sm = { url = "https://github.com/explosion/spacy-models/releases/download/ja_core_news_sm-3.7.0/ja_core_news_sm-3.7.0.tar.gz" }
+
+[tool.taskipy.tasks]
+check = "uvx ruff check --fix --extend-select I"
+format = "uvx ruff format ."
