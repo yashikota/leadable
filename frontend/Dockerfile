@@ -12,7 +12,7 @@ FROM base AS build
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm run build
 
-FROM busybox:1.37
-COPY --from=build /app/dist /public
+FROM caddy:2.9.1-alpine
+COPY --from=build /app/dist /srv
 EXPOSE 8877
-CMD ["busybox", "httpd", "-f", "-p", "8877", "-h", "/public"]
+CMD ["caddy", "file-server", "-r", "/srv", "-l", ":8877"]
