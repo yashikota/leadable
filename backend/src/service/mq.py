@@ -1,11 +1,12 @@
-import os
-import json
 import asyncio
+import json
 import logging
+import os
 from datetime import datetime
+from enum import Enum
+
 import pika
 from pika.adapters.asyncio_connection import AsyncioConnection
-from enum import Enum
 
 # RabbitMQ configuration
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")

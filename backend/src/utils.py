@@ -1,6 +1,6 @@
+import logging
 import urllib.parse
 import urllib.request
-import logging
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -33,7 +33,7 @@ async def health_check_db():
     """Health check for the database service."""
     try:
         # Import here to avoid circular imports
-        from backend.src.service.db import get_mongo_client, MONGO_DB
+        from backend.src.service.db import MONGO_DB, get_mongo_client
 
         client = get_mongo_client()
         db = client[MONGO_DB]

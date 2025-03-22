@@ -1,4 +1,5 @@
 import os
+
 from ollama import Client
 
 OLLAMA_HOST_URL = os.environ.get("OLLAMA_HOST_URL", "http://ollama:11434")

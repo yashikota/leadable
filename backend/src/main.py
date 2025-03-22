@@ -1,13 +1,13 @@
+import asyncio
 import logging
 import os
-import asyncio
-from pathlib import Path
 import tempfile
-from datetime import datetime
-from typing import Optional
 from contextlib import asynccontextmanager
+from datetime import datetime
+from pathlib import Path
+from typing import Optional
 
-from fastapi import FastAPI, File, UploadFile, Form, Query
+from fastapi import FastAPI, File, Form, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from starlette.responses import StreamingResponse
@@ -86,8 +86,8 @@ async def custom_translate_function(
     """
     try:
         # Import here to avoid potential circular imports
-        from backend.src.service.storage import download_file
         from backend.src.service.llm import get_ollama_client
+        from backend.src.service.storage import download_file
 
         # Check if the source_text is a MinIO file path
         if source_text.startswith("file://"):
@@ -175,9 +175,9 @@ async def health_all():
 
     try:
         from backend.src.utils import (
-            health_check_ollama,
             health_check_db,
             health_check_mq,
+            health_check_ollama,
         )
 
         ollama = await health_check_ollama()
@@ -340,7 +340,7 @@ async def download_translation(task_id: str):
     """Download a translated file by task ID."""
     try:
         # Import here to avoid potential circular imports
-        from backend.src.service.mq import get_translation_status, TaskStatus
+        from backend.src.service.mq import TaskStatus, get_translation_status
         from backend.src.service.storage import download_file
 
         # Get translation details

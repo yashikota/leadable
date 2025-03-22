@@ -7,6 +7,7 @@ from io import BytesIO
 
 import fitz  # PyMuPDF
 import numpy as np
+
 from spacy_api import tokenize_text
 
 

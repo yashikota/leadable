@@ -1,7 +1,8 @@
-import minio
 import os
-from pathlib import Path
 from io import BufferedIOBase  # Importing to use as a base class for binary I/O
+from pathlib import Path
+
+import minio
 
 # MinIO client configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
