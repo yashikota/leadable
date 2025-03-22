@@ -28,15 +28,14 @@
 > Ollama もしくは HuggingFaceにモデルがある場合のみ  
 > モデルサイズが大きいためダウンロードに時間がかかります。時間をおいて使用してください  
 
-## 運用方法
+## 立ち上げ
 
 ```sh
 make up
 ```
 
-`http://localhost:8877` にウェブアプリが立ち上がる
+以下立ち上がるサイト
 
-## 開発
-
-1. [aquaをインストール](https://aquaproj.github.io/docs/install)
-2. `aqua i -l`
+- [Leadable](http://localhost:8877) - メインアプリケーション
+- [Open WebUI](http://localhost:8778) - Ollamaとチャットできる
+- [Ollama Model Manager](http://localhost:8788) - 動かすモデルの管理
