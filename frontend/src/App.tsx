@@ -15,7 +15,6 @@ import {
   FileDown,
   FileUp,
   GithubIcon,
-  Plus,
   Save,
   Settings,
   Trash2,
@@ -103,8 +102,6 @@ function App() {
   const [selectedProvider, setSelectedProvider] = useState<string>("openai");
   const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
   const [customModels, setCustomModels] = useState<LLMModel[]>([]);
-  const [newModelName, setNewModelName] = useState("");
-  const [isAddingModel, setIsAddingModel] = useState(false);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({
     openai: "",
     anthropic: "",
