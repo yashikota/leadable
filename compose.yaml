@@ -7,7 +7,7 @@ services:
     depends_on:
       minio:
         condition: service_healthy
-      mongo-db:
+      mongo:
         condition: service_healthy
       ollama:
         condition: service_healthy
@@ -58,7 +58,6 @@ services:
       - MINIO_ROOT_USER=root
       - MINIO_ROOT_PASSWORD=${MINIO_PASSWORD}
     ports:
-      - '9000:9000'
       - '9001:9001'
     command: server /data --console-address ":9001"
     healthcheck:
@@ -66,19 +65,20 @@ services:
       retries: 5
       test: mc ready local
       timeout: 5s
-  mongo-db:
+  mongo:
     image: mongo:8.0.5
-    container_name: mongo-db
+    container_name: mongo
     volumes:
       - source: mongodb-data
         target: /data/db
         type: volume
+      - source: configdb-data
+        target: /data/configdb
+        type: volume
     environment:
       - TZ=Asia/Tokyo
       - MONGO_INITDB_ROOT_USERNAME=root
-      - MONGO_INITDB_ROOT_PASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-    ports:
-      - '27017:27017'
+      - MONGO_INITDB_ROOT_PASSWORD=example
     restart: always
     healthcheck:
       interval: 30s
@@ -90,13 +90,14 @@ services:
     image: mongo-express:1.0.2
     container_name: mongo-express
     depends_on:
-      - mongo-db
+      mongo:
+        condition: service_healthy
     environment:
       - TZ=Asia/Tokyo
       - ME_CONFIG_MONGODB_ADMINUSERNAME=root
-      - ME_CONFIG_MONGODB_ADMINPASSWORD=${MONGO_INITDB_ROOT_PASSWORD}
-      - ME_CONFIG_MONGODB_SERVER=mongo-db
-      - ME_CONFIG_BASICAUTH_ENABLED=false
+      - ME_CONFIG_MONGODB_ADMINPASSWORD=example
+      - ME_CONFIG_MONGODB_URL=mongodb://root:example@mongo:27017/
+      - ME_CONFIG_BASICAUTH=false
     ports:
       - '8781:8081'
     restart: always
@@ -150,20 +151,19 @@ services:
       - '8778:8080'
     restart: always
   rabbitmq:
-    image: rabbitmq:4.0.7-alpine
+    image: rabbitmq:4.0.7-management-alpine
     container_name: rabbitmq
     volumes:
       - source: rabbitmq-data
         target: /var/lib/rabbitmq
         type: volume
-      - source: rabbitmq-log
+      - source: .rabbitmq-log
         target: /var/log/rabbitmq
         type: bind
     environment:
-      RABBITMQ_DEFAULT_PASS: ${RABBITMQ_DEFAULT_PASS}
-      RABBITMQ_DEFAULT_USER: root
+      - RABBITMQ_DEFAULT_USER=root
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
     ports:
-      - '5672:5672'
       - '15672:15672'
     restart: always
     healthcheck:
@@ -172,6 +172,7 @@ services:
       test: rabbitmqctl status
       timeout: 30s
 volumes:
+  configdb-data:
   minio-data:
   mongodb-data:
   ollama:
