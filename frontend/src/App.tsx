@@ -17,20 +17,12 @@ import {
   Save,
   Settings,
   SquareArrowOutUpRight,
-  Trash2,
 } from "lucide-react";
 import Select from "react-select";
+import type { Task } from "./types/type";
 
 const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
 const API_URL = `http://${ADDRESS}:8866`;
-
-interface TranslatedFile {
-  id: string;
-  name: string;
-  originalName: string;
-  timestamp: Date;
-  url: string;
-}
 
 // Define available LLM providers and models
 interface LLMModel {
@@ -98,7 +90,7 @@ function App() {
   const [error, setError] = useState<string | null>(null);
   const [translationComplete, setTranslationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [translatedFiles, setTranslatedFiles] = useState<TranslatedFile[]>([]);
+  const [translationTasks, setTranslationTasks] = useState<Task[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("openai");
   const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({
@@ -128,6 +120,10 @@ function App() {
       .map((p) => p.id)
       .filter((id) => id !== "ollama")
       .forEach(loadApiKey);
+  }, []);
+
+  useEffect(() => {
+    handleGetTasks();
   }, []);
 
   // Debounce save to localStorage
@@ -215,52 +211,83 @@ function App() {
     try {
       const formData = new FormData();
       formData.append("file", file);
+      formData.append("source_lang", "en");
+      formData.append("target_lang", "ja");
+      formData.append("model_name", selectedModel);
 
-      const response = await fetch(`${API_URL}/translate/`, {
+      const response = await fetch(`${API_URL}/translate`, {
         method: "POST",
         body: formData,
       });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "翻訳リクエストに失敗しました");
+      if (response.status !== 200) {
+        const errorData = await response
+          .json()
+          .catch(() => ({ message: "翻訳リクエストの受付に失敗しました" }));
+        throw new Error(
+          errorData.message || `HTTP error! status: ${response.status}`,
+        );
       }
 
       const data = await response.json();
-      const fileUrl = data.url;
+      const taskId = data.task_id;
 
+      await handleGetTask(taskId);
       setTranslationComplete(true);
-      // Add the translated file to the list
-      if (file) {
-        const newTranslatedFile = {
-          id: "1",
-          name: file.name,
-          originalName: file.name,
-          timestamp: new Date(),
-          url: fileUrl,
-        };
-        setTranslatedFiles((prev) => [newTranslatedFile, ...prev]);
-      }
     } catch (err) {
-      setError(err instanceof Error ? err.message : "翻訳に失敗しました");
+      console.error("Translation request failed:", err);
+      const errorMessage =
+        err instanceof Error
+          ? (err as any).error || err.message
+          : "翻訳に失敗しました";
+      setError(errorMessage);
     } finally {
       setIsTranslating(false);
     }
   };
 
-  const handleDeleteFile = (id: string) => {
-    setTranslatedFiles((prev) => prev.filter((file) => file.id !== id));
+  const handleGetTasks = async () => {
+    try {
+      const response = await fetch(`${API_URL}/tasks`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch translation tasks");
+      }
+      const data = (await response.json()) as Task[];
+      setTranslationTasks(data);
+    } catch (err) {
+      console.error("Failed to fetch translation tasks:", err);
+    }
   };
 
-  const formatTimestamp = (date: Date): string => {
-    return new Intl.DateTimeFormat("ja-JP", {
-      year: "numeric",
-      month: "2-digit",
-      day: "2-digit",
-      hour: "2-digit",
-      minute: "2-digit",
-    }).format(date);
+  const handleGetTask = async (taskId: string) => {
+    try {
+      const response = await fetch(`${API_URL}/task/${taskId}`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch translation task");
+      }
+      const data = (await response.json()) as Task;
+      setTranslationTasks((prev) => [...prev, data]);
+    } catch (err) {
+      console.error("Failed to fetch translation task:", err);
+    }
   };
+
+  // function handleDeleteTask(task_id: string): void {
+  //   fetch(`${API_URL}/task/${task_id}`, {
+  //     method: "DELETE",
+  //   })
+  //     .then((response) => {
+  //       if (!response.ok) {
+  //         throw new Error("Failed to delete translation task");
+  //       }
+  //       setTranslationTasks((prev) =>
+  //         prev.filter((task) => task.task_id !== task_id),
+  //       );
+  //     })
+  //     .catch((err) => {
+  //       console.error("Failed to delete translation task:", err);
+  //     });
+  // }
 
   const resetForm = () => {
     setFile(null);
@@ -373,10 +400,11 @@ function App() {
         <div className="card">
           <div className="card-body">
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${isDragging
+              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${
+                isDragging
                   ? "border-primary bg-base-200"
                   : "border-base-300 hover:border-primary/50"
-                }`}
+              }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -441,8 +469,8 @@ function App() {
               {translationComplete && (
                 <div className="flex flex-col sm:flex-row gap-2 w-full">
                   <a
-                    href={translatedFiles.length > 0 ? translatedFiles[0].url : '#'}
-                    className="btn btn-success flex-1"
+                    href={translationTasks[0].translated_file_url}
+                    className="btn btn-primary flex-1"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -462,34 +490,49 @@ function App() {
           </div>
         </div>
 
-        {translatedFiles.length > 0 && (
+        {translationTasks.length > 0 && (
           <div className="mt-4">
-            <h2 className="text-xl font-bold mb-4">翻訳済みファイル一覧</h2>
+            <h2 className="text-xl font-bold mb-4">ファイル一覧</h2>
             <div className="overflow-x-auto">
               <table className="table w-full">
+                <thead>
+                  <tr>
+                    <th>ファイル名</th>
+                    <th>ステータス</th>
+                    <th>作成日時</th>
+                    <th className="text-right">アクション</th>
+                  </tr>
+                </thead>
                 <tbody>
-                  {translatedFiles.map((file) => (
-                    <tr key={file.id} className="hover">
-                      <td className="max-w-xs truncate">{file.name}</td>
-                      <td>{formatTimestamp(file.timestamp)}</td>
+                  {translationTasks.map((task: Task) => (
+                    <tr key={task.task_id} className="hover">
+                      <td className="max-w-xs truncate">
+                        {task.original_filename}
+                      </td>
+                      <td>
+                        <span className="badge badge-success">完了</span>
+                      </td>
+                      <td>{new Date(task.timestamp).toLocaleString()}</td>
                       <td className="text-right">
                         <div className="join">
                           <a
-                            href={file.url}
-                            className="btn btn-sm border-none bg-none join-item hover:bg-gray-200"
+                            href={task.translated_file_url}
+                            className="join-item hover:bg-gray-200"
                             target="_blank"
                             rel="noopener noreferrer"
                           >
-                            <SquareArrowOutUpRight size={18} />
+                            <SquareArrowOutUpRight size={20} />
                           </a>
+                          {/*
                           <button
                             type="button"
-                            className="btn btn-sm btn-error border-none bg-none join-item ml-2 hover:bg-red-200"
-                            onClick={() => handleDeleteFile(file.id)}
+                            className="btn btn-sm join-item hover:bg-red-200 border-none"
+                            onClick={() => handleDeleteTask(task.task_id)}
                             aria-label="削除"
                           >
                             <Trash2 size={18} />
                           </button>
+                          */}
                         </div>
                       </td>
                     </tr>

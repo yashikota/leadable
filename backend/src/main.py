@@ -4,11 +4,17 @@ from datetime import datetime
 from logging import getLogger
 
 from discord_webhook import DiscordWebhook
-from fastapi import FastAPI, File, Form, Query, UploadFile
+from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from service.db import get_translation_history, initialize_database
+from service.db import (
+    delete_task,
+    get_all_tasks,
+    get_task,
+    initialize_database,
+    store_result,
+)
 from service.health import (
     health_check_backend,
     health_check_db,
@@ -17,17 +23,14 @@ from service.health import (
     health_check_storage,
 )
 from service.llm import show_models
-from service.mq import (
-    get_all_translation_statuses,
-    get_translation_status,
-)
 from service.storage import get_file_url, initialize_storage, upload_file
-from service.translate import pdf_translate
 
 logger = getLogger(__name__)
 
 tags_metadata = [
     {"name": "api"},
+    {"name": "db"},
+    {"name": "llm"},
     {"name": "status"},
 ]
 
@@ -85,7 +88,7 @@ app.add_middleware(
 
 # ==================== MAIN ENDPOINTS ====================
 @app.post("/translate", tags=["api"])
-async def translate_file(
+async def translate_endpoint(
     source_lang: str = Form("en"),
     target_lang: str = Form("ja"),
     file: UploadFile = File(...),
@@ -105,84 +108,83 @@ async def translate_file(
             return JSONResponse(
                 status_code=400, content={"message": "Uploaded File upload failed"}
             )
+        original_file = {
+            "filename": file.filename,
+            "url": get_file_url(f"uploads/{filename}"),
+        }
 
         # Translate the PDF file
-        is_translate_success, result_pdf = await pdf_translate(
-            data, model_name=model_name
-        )
-        if not is_translate_success:
-            return JSONResponse(
-                status_code=400, content={"message": "Translation failed"}
-            )
+        # is_translate_success, result_pdf = await pdf_translate(
+        #     data, model_name=model_name
+        # )
+        # if not is_translate_success:
+        #     return JSONResponse(
+        #         status_code=400, content={"message": "Translation failed"}
+        #     )
         is_upload_success = await upload_file(
-            result_pdf, f"translated/{filename}", file.content_type
+            data, f"translated/{filename}", file.content_type
         )
         if not is_upload_success:
             return JSONResponse(
                 status_code=400, content={"message": "Translated File upload failed"}
             )
+        translated_file = {
+            "filename": file.filename,
+            "url": get_file_url(f"translated/{filename}"),
+        }
+
+        # Store the translation result
+        task_id = await store_result(original_file, translated_file)
 
         # Discord Webhook
         if discord_webhook_url := os.getenv("DISCORD_WEBHOOK_URL"):
             webhook = DiscordWebhook(
                 url=discord_webhook_url,
-                content=f"翻訳が終了しました! [{filename}]({get_file_url(f"translated/{filename}")})",
+                content=f"翻訳が終了しました！ [{filename}]({get_file_url(f'translated/{filename}')})",
             )
             response = webhook.execute()
             logger.info(f"Discord Webhook response: {response}")
 
-        return JSONResponse(
-            status_code=200, content={"url": get_file_url(f"translated/{filename}")}
-        )
+        return JSONResponse(status_code=200, content={"task_id": task_id})
     except Exception as e:
         logger.error(f"Translation request error: {str(e)}")
         return JSONResponse(status_code=400, content={"message": "Translation failed"})
 
 
-@app.get("/translate/status/{task_id}", tags=["api"])
-async def get_status(task_id: str):
+@app.get("/tasks", tags=["db"])
+async def get_tasks_endpoint():
     try:
-        return await get_translation_status(task_id)
-    except Exception as e:
-        logger.error(f"Status check error for task {task_id}: {str(e)}")
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Failed to get translation status",
-        }
-
-
-@app.get("/translate/status", tags=["api"])
-async def get_all_statuses():
-    try:
-        return await get_all_translation_statuses()
-    except Exception as e:
-        logger.error(f"Status list error: {str(e)}")
-        return {
-            "success": False,
-            "error": str(e),
-            "message": "Failed to get translation statuses",
-        }
-
-
-@app.get("/translations/history", tags=["api"])
-async def get_translations(
-    limit: int = Query(50, ge=1, le=100),
-    skip: int = Query(0, ge=0),
-    search: str = Query(None),
-):
-    try:
-        return await get_translation_history(limit=limit, skip=skip, search_text=search)
+        return await get_all_tasks()
     except Exception as e:
         logger.error(f"Translation history error: {str(e)}")
         return {
-            "success": False,
             "error": str(e),
-            "message": "Failed to get translation history",
         }
 
 
-@app.get("/models", tags=["api"])
+@app.get("/task/{task_id}", tags=["db"])
+async def get_task_endpoint(task_id: str):
+    try:
+        return await get_task(task_id)
+    except Exception as e:
+        logger.error(f"Translation history error: {str(e)}")
+        return {
+            "error": str(e),
+        }
+
+
+@app.delete("/task/{task_id}", tags=["db"])
+async def delete_task_endpoint(task_id: str):
+    try:
+        return await delete_task(task_id)
+    except Exception as e:
+        logger.error(f"Translation history error: {str(e)}")
+        return {
+            "error": str(e),
+        }
+
+
+@app.get("/models", tags=["llm"])
 async def models():
     try:
         return await show_models()

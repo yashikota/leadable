@@ -9,6 +9,9 @@
       "recommended": true,
       "correctness": {
         "noUnknownProperty": "off"
+      },
+      "suspicious": {
+        "noExplicitAny": "off"
       }
     },
     "ignore": [".next", "dist", "tsconfig*.json"]
