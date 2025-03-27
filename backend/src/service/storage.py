@@ -1,20 +1,20 @@
+import json
 import os
-from io import BufferedIOBase  # Importing to use as a base class for binary I/O
-from pathlib import Path
+import tempfile
+from logging import getLogger
 
 import minio
 
+logger = getLogger(__name__)
+
 # MinIO client configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")
-MINIO_ACCESS_KEY = os.getenv("MINIO_ROOT_USER", "root")
-MINIO_SECRET_KEY = os.getenv("MINIO_PASSWORD")
+MINIO_ACCESS_KEY = os.getenv("MINIO_ACCESS_KEY", "root")
+MINIO_SECRET_KEY = os.getenv("MINIO_SECRET_KEY")
 DEFAULT_BUCKET = os.getenv("MINIO_DEFAULT_BUCKET", "leadable")
 
 
 def get_minio_client() -> minio.Minio:
-    """
-    Initialize and return a MinIO client.
-    """
     return minio.Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ACCESS_KEY,
@@ -23,100 +23,70 @@ def get_minio_client() -> minio.Minio:
     )
 
 
+def initialize_storage() -> bool:
+    """
+    Create the default bucket if it does not exist
+    Apply bucket policy to allow public read access
+    """
+    try:
+        client = get_minio_client()
+        ensure_bucket_exists(client, DEFAULT_BUCKET)
+
+        # Apply bucket policy to allow public read access
+        policy = {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {"AWS": "*"},
+                    "Action": ["s3:GetObject"],
+                    "Resource": [f"arn:aws:s3:::{DEFAULT_BUCKET}/*"],
+                }
+            ],
+        }
+        client.set_bucket_policy(DEFAULT_BUCKET, json.dumps(policy))
+        logger.info(f"Applied bucket policy to {DEFAULT_BUCKET}")
+        return True
+    except Exception as e:
+        logger.error(f"Error initializing storage: {str(e)}")
+        return False
+
+
 def ensure_bucket_exists(client: minio.Minio, bucket_name: str) -> None:
-    """
-    Ensure that the specified bucket exists, creating it if necessary.
-    """
-    if not client.bucket_exists(bucket_name):
-        client.make_bucket(bucket_name)
+    try:
+        if not client.bucket_exists(bucket_name):
+            client.make_bucket(bucket_name)
+            logger.info(f"Created bucket: {bucket_name}")
+    except Exception as e:
+        logger.error(f"Error ensuring bucket exists: {str(e)}")
+        raise
 
 
-def upload_file(
-    file_path_or_object: str
-    | Path
-    | BufferedIOBase,  # Using BufferedIOBase as a more generic binary I/O base class
-    object_name: str | None = None,
-    bucket_name: str = DEFAULT_BUCKET,
-    content_type: str | None = None,
-) -> str:
-    """
-    Upload a file to MinIO storage.
+async def upload_file(file: bytes, filename: str, filetype: str) -> bool:
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_file.write(file)
 
-    Args:
-        file_path_or_object: Path to the file or a file-like object
-        object_name: Name to save the file as in MinIO (defaults to basename if file_path is provided)
-        bucket_name: Name of the bucket to upload to
-        content_type: MIME type of the file (optional)
-
-    Returns:
-        The object name of the uploaded file
-    """
-    client = get_minio_client()
-    ensure_bucket_exists(client, bucket_name)
-
-    # If file_path_or_object is a string or Path, open the file
-    if isinstance(file_path_or_object, (str, Path)):
-        file_path = Path(file_path_or_object)
-        if not object_name:
-            object_name = file_path.name
-
-        client.fput_object(
-            bucket_name=bucket_name,
-            object_name=object_name,
-            file_path=str(file_path),
-            content_type=content_type,
-        )
-    else:
-        # It's a file-like object
-        if not object_name:
-            raise ValueError(
-                "object_name must be specified when uploading from a file-like object"
+        try:
+            client = get_minio_client()
+            ensure_bucket_exists(client, DEFAULT_BUCKET)
+            client.fput_object(
+                bucket_name=DEFAULT_BUCKET,
+                object_name=filename,
+                file_path=temp_file.name,
+                content_type=filetype,
             )
-
-        # To get the size, we need to read the file
-        file_data = file_path_or_object.read()
-        file_size = len(file_data)
-        file_path_or_object.seek(0)  # Reset file pointer
-
-        client.put_object(
-            bucket_name=bucket_name,
-            object_name=object_name,
-            data=file_path_or_object,
-            length=file_size,
-            content_type=content_type,
-        )
-
-    return object_name
+            return True
+        except Exception as e:
+            logger.error(f"MinIO upload error: {str(e)}")
+            return False
+        finally:
+            os.unlink(temp_file.name)
+    except Exception as e:
+        logger.error(f"Error writing file to disk: {str(e)}")
+        return False
 
 
-def download_file(
-    object_name: str,
-    file_path: str | Path | None = None,
-    bucket_name: str = DEFAULT_BUCKET,
-) -> bytes | str:
-    """
-    Download a file from MinIO storage.
-
-    Args:
-        object_name: Name of the file in MinIO
-        file_path: Path where to save the downloaded file (optional)
-        bucket_name: Name of the bucket to download from
-
-    Returns:
-        If file_path is provided, returns the file path.
-        Otherwise, returns the file content as bytes.
-    """
-    client = get_minio_client()
-
-    if file_path:
-        file_path = Path(file_path)
-        client.fget_object(
-            bucket_name=bucket_name, object_name=object_name, file_path=str(file_path)
-        )
-        return str(file_path)
-    else:
-        # Return the file content as bytes
-        response = client.get_object(bucket_name=bucket_name, object_name=object_name)
-        data = response.read()
-        response.close()
-        return data
+def get_file_url(filename: str) -> str:
+    ADDRESS = os.getenv("SERVER_ADDRESS")
+    return f"http://{ADDRESS}:9000/{DEFAULT_BUCKET}/{filename}"

@@ -1,7 +1,5 @@
 # backend
 
-To change the Ollama URL, use `OLLAMA_HOST=http://localhost:8434`
-
 ## Local Development
 
 1. Install [Ollama](https://ollama.com)
@@ -10,6 +8,6 @@ To change the Ollama URL, use `OLLAMA_HOST=http://localhost:8434`
 4. `uv run fastapi dev src/main.py`
 5. Deploy to `http://localhost:8866`
 
-## Docs
+## Swagger UI
 
 <http://localhost:8866/docs>

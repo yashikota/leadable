@@ -12,24 +12,24 @@ import {
   Check,
   CircleCheckBig,
   CircleX,
-  FileDown,
   FileUp,
   GithubIcon,
   Save,
   Settings,
+  SquareArrowOutUpRight,
   Trash2,
 } from "lucide-react";
 import Select from "react-select";
-import CreatableSelect from "react-select/creatable";
 
-const API_URL =
-  import.meta.env.VITE_LEADABLE_API_URL || "http://localhost:8866";
+const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
+const API_URL = `http://${ADDRESS}:8866`;
 
 interface TranslatedFile {
   id: string;
   name: string;
   originalName: string;
   timestamp: Date;
+  url: string;
 }
 
 // Define available LLM providers and models
@@ -101,7 +101,6 @@ function App() {
   const [translatedFiles, setTranslatedFiles] = useState<TranslatedFile[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("openai");
   const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
-  const [customModels, setCustomModels] = useState<LLMModel[]>([]);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({
     openai: "",
     anthropic: "",
@@ -227,15 +226,18 @@ function App() {
         throw new Error(errorData.message || "翻訳リクエストに失敗しました");
       }
 
-      setTranslationComplete(true);
+      const data = await response.json();
+      const fileUrl = data.url;
 
+      setTranslationComplete(true);
       // Add the translated file to the list
       if (file) {
         const newTranslatedFile = {
-          id: crypto.randomUUID(),
+          id: "1",
           name: file.name,
           originalName: file.name,
           timestamp: new Date(),
+          url: fileUrl,
         };
         setTranslatedFiles((prev) => [newTranslatedFile, ...prev]);
       }
@@ -244,16 +246,6 @@ function App() {
     } finally {
       setIsTranslating(false);
     }
-  };
-
-  const handleDownload = () => {
-    if (file) {
-      window.open(`${API_URL}/download/${file.name}`, "_blank");
-    }
-  };
-
-  const handleDownloadFile = (fileName: string) => {
-    window.open(`${API_URL}/download/${fileName}`, "_blank");
   };
 
   const handleDeleteFile = (id: string) => {
@@ -297,15 +289,6 @@ function App() {
       label: model.name,
     }));
 
-    // Add custom models for Ollama
-    if (selectedProvider === "ollama") {
-      const customModelOptions = customModels.map((model) => ({
-        value: model.id,
-        label: model.name,
-      }));
-      return [...modelOptions, ...customModelOptions];
-    }
-
     return modelOptions;
   };
 
@@ -325,34 +308,6 @@ function App() {
   const handleModelChange = (option: SelectOption | null) => {
     if (!option) return;
     setSelectedModel(option.value);
-  };
-
-  // Handle creation of a new model option (only for Ollama)
-  const handleCreateModel = (inputValue: string) => {
-    if (!inputValue.trim() || selectedProvider !== "ollama") return;
-
-    const modelId = inputValue.trim().toLowerCase().replace(/\s+/g, "-");
-    const newModel = { id: modelId, name: inputValue.trim() };
-
-    // Add to custom models
-    setCustomModels((prev) => [...prev, newModel]);
-
-    // Select the new model
-    setSelectedModel(modelId);
-  };
-
-  const handleDeleteCustomModel = (modelId: string) => {
-    // Remove the model from customModels
-    setCustomModels((prev) => prev.filter((model) => model.id !== modelId));
-
-    // If the deleted model was selected, switch to the first default Ollama model
-    if (selectedModel === modelId) {
-      const defaultOllamaModel = llmProviders.find((p) => p.id === "ollama")
-        ?.models[0];
-      if (defaultOllamaModel) {
-        setSelectedModel(defaultOllamaModel.id);
-      }
-    }
   };
 
   // Find the current selected option
@@ -418,11 +373,10 @@ function App() {
         <div className="card">
           <div className="card-body">
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${
-                isDragging
+              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${isDragging
                   ? "border-primary bg-base-200"
                   : "border-base-300 hover:border-primary/50"
-              }`}
+                }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -486,14 +440,15 @@ function App() {
 
               {translationComplete && (
                 <div className="flex flex-col sm:flex-row gap-2 w-full">
-                  <button
-                    type="button"
+                  <a
+                    href={translatedFiles.length > 0 ? translatedFiles[0].url : '#'}
                     className="btn btn-success flex-1"
-                    onClick={handleDownload}
+                    target="_blank"
+                    rel="noopener noreferrer"
                   >
-                    <FileDown size={20} className="mr-2" />
-                    ダウンロード
-                  </button>
+                    <SquareArrowOutUpRight size={20} className="mr-2" />
+                    開く
+                  </a>
                   <button
                     type="button"
                     className="btn btn-outline flex-1"
@@ -519,16 +474,14 @@ function App() {
                       <td>{formatTimestamp(file.timestamp)}</td>
                       <td className="text-right">
                         <div className="join">
-                          <button
-                            type="button"
+                          <a
+                            href={file.url}
                             className="btn btn-sm border-none bg-none join-item hover:bg-gray-200"
-                            onClick={() =>
-                              handleDownloadFile(file.originalName)
-                            }
-                            aria-label="ダウンロード"
+                            target="_blank"
+                            rel="noopener noreferrer"
                           >
-                            <FileDown size={18} />
-                          </button>
+                            <SquareArrowOutUpRight size={18} />
+                          </a>
                           <button
                             type="button"
                             className="btn btn-sm btn-error border-none bg-none join-item ml-2 hover:bg-red-200"
@@ -576,93 +529,49 @@ function App() {
                 <label htmlFor="model-select" className="label">
                   <span className="label-text">モデル</span>
                 </label>
-                {selectedProvider === "ollama" ? (
-                  <CreatableSelect
-                    inputId="model-select"
-                    className="basic-single"
-                    classNamePrefix="select"
-                    value={getCurrentModelOption()}
-                    onChange={handleModelChange}
-                    options={getModelOptions()}
-                    onCreateOption={handleCreateModel}
-                    placeholder="モデルを選択または追加"
-                    formatCreateLabel={(inputValue) => `"${inputValue}" を追加`}
-                  />
-                ) : (
-                  <Select
-                    inputId="model-select"
-                    className="basic-single"
-                    classNamePrefix="select"
-                    value={getCurrentModelOption()}
-                    onChange={handleModelChange}
-                    options={getModelOptions()}
-                    isSearchable={true}
-                    placeholder="モデルを選択"
-                  />
-                )}
+                <Select
+                  inputId="model-select"
+                  className="basic-single"
+                  classNamePrefix="select"
+                  value={getCurrentModelOption()}
+                  onChange={handleModelChange}
+                  options={getModelOptions()}
+                  isSearchable={true}
+                  placeholder="モデルを選択"
+                />
               </div>
             </div>
 
-            {/* API Key Input (only for non-Ollama providers) */}
-            {selectedProvider !== "ollama" && (
-              <div className="mt-4">
-                <div className="form-control w-full">
-                  <label htmlFor="api-key-input" className="label">
-                    <span className="label-text">API キー</span>
-                    <span className="label-text-alt flex items-center gap-1">
-                      {apiKeySaveStatus === "saved"
-                        ? "保存済み"
-                        : apiKeySaveStatus === "saving"
-                          ? "保存中..."
-                          : "未保存"}
-                      {renderSaveStatus()}
-                    </span>
-                  </label>
-                  <div className="join w-full">
-                    <input
-                      id="api-key-input"
-                      type="password"
-                      placeholder="sk-*************************************"
-                      className="input input-bordered input-primary w-full bg-white"
-                      value={apiKeys[selectedProvider] || ""}
-                      onChange={handleApiKeyChange}
-                    />
-                  </div>
-                  <label htmlFor="api-key-input" className="label">
-                    <span className="label-text-alt text-base-content/70 mt-2">
-                      APIキーを入力してください。これはローカルに保存され、他のユーザーとは共有されません。
-                    </span>
-                  </label>
+            <div className="mt-4">
+              <div className="form-control w-full">
+                <label htmlFor="api-key-input" className="label">
+                  <span className="label-text">API キー</span>
+                  <span className="label-text-alt flex items-center gap-1">
+                    {apiKeySaveStatus === "saved"
+                      ? "保存済み"
+                      : apiKeySaveStatus === "saving"
+                        ? "保存中..."
+                        : "未保存"}
+                    {renderSaveStatus()}
+                  </span>
+                </label>
+                <div className="join w-full">
+                  <input
+                    id="api-key-input"
+                    type="password"
+                    placeholder="sk-*************************************"
+                    className="input input-bordered input-primary w-full bg-white"
+                    value={apiKeys[selectedProvider] || ""}
+                    onChange={handleApiKeyChange}
+                  />
                 </div>
+                <label htmlFor="api-key-input" className="label">
+                  <span className="label-text-alt text-base-content/70 mt-2">
+                    APIキーを入力してください。これはローカルに保存され、他のユーザーとは共有されません。
+                  </span>
+                </label>
               </div>
-            )}
-
-            {/* Custom models list (only for Ollama) */}
-            {selectedProvider === "ollama" && customModels.length > 0 && (
-              <div className="mt-4">
-                <div className="text-sm font-medium mb-2">
-                  追加済みカスタムモデル
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {customModels.map((model) => (
-                    <div
-                      key={model.id}
-                      className="badge badge-outline gap-2 py-3"
-                    >
-                      {model.name}
-                      <button
-                        type="button"
-                        className="btn btn-xs btn-circle btn-ghost"
-                        onClick={() => handleDeleteCustomModel(model.id)}
-                        aria-label="Delete custom model"
-                      >
-                        <CircleX size={14} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
+            </div>
           </div>
         </div>
       </div>

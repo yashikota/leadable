@@ -13,7 +13,7 @@ from spacy_api import tokenize_text
 
 async def extract_text_coordinates_dict(pdf_data):
     """
-    pdf バイトデータのテキストファイル座標を取得します。
+    pdfバイトデータのテキストファイル座標を取得します。
     """
     # PDFファイルを開く
     document = await asyncio.to_thread(fitz.open, stream=pdf_data, filetype="pdf")

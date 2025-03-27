@@ -30,6 +30,8 @@
 
 ## 立ち上げ
 
+`.evn.example` を参考に `.env` を作成してください。  
+
 ```sh
 make up
 ```
@@ -37,5 +39,5 @@ make up
 以下立ち上がるサイト
 
 - [Leadable](http://localhost:8877) - メインアプリケーション
-- [Open WebUI](http://localhost:8778) - Ollamaとチャットできる
-- [Ollama Model Manager](http://localhost:8788) - 動かすモデルの管理
+- [Open WebUI](http://localhost:8778) - Ollamaとのチャット用
+- [Ollama Model Manager](http://localhost:8788) - Ollama用のモデル管理

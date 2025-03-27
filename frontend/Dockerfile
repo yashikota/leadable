@@ -5,6 +5,9 @@ RUN corepack enable
 COPY . /app
 WORKDIR /app
 
+ARG VITE_SERVER_ADDRESS
+ENV VITE_SERVER_ADDRESS=${VITE_SERVER_ADDRESS}
+
 FROM base AS prod-deps
 RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --prod --frozen-lockfile
 
