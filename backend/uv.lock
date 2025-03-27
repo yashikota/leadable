@@ -703,6 +703,7 @@ dependencies = [
     { name = "pillow" },
     { name = "pymongo" },
     { name = "pymupdf" },
+    { name = "requests" },
     { name = "spacy" },
     { name = "tenacity" },
 ]
@@ -728,6 +729,7 @@ requires-dist = [
     { name = "pillow", specifier = ">=10.4.0" },
     { name = "pymongo", specifier = ">=4.11.3" },
     { name = "pymupdf", specifier = ">=1.24.10" },
+    { name = "requests", specifier = ">=2.32.3" },
     { name = "spacy", specifier = "==3.7.5" },
     { name = "tenacity", specifier = ">=9.0.0" },
 ]

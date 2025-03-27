@@ -17,71 +17,12 @@ import {
   Save,
   Settings,
   SquareArrowOutUpRight,
+  Trash2,
 } from "lucide-react";
-import Select from "react-select";
-import type { Task } from "./types/type";
+import type { AvailableModels, SelectOption, Task } from "./types/type";
 
 const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
 const API_URL = `http://${ADDRESS}:8866`;
-
-// Define available LLM providers and models
-interface LLMModel {
-  id: string;
-  name: string;
-}
-
-interface LLMProvider {
-  id: string;
-  name: string;
-  models: LLMModel[];
-}
-
-const llmProviders: LLMProvider[] = [
-  {
-    id: "openai",
-    name: "OpenAI",
-    models: [
-      { id: "gpt-4", name: "GPT-4" },
-      { id: "gpt-4o", name: "GPT-4o" },
-      { id: "o1", name: "o1" },
-      { id: "o1-mini", name: "o1-mini" },
-      { id: "o3-mini", name: "o3-mini" },
-    ],
-  },
-  {
-    id: "anthropic",
-    name: "Anthropic",
-    models: [
-      { id: "claude-2", name: "Claude 2" },
-      { id: "claude-instant", name: "Claude Instant" },
-    ],
-  },
-  {
-    id: "google",
-    name: "Google",
-    models: [
-      { id: "gemini-pro", name: "Gemini Pro" },
-      { id: "gemini-ultra", name: "Gemini Ultra" },
-    ],
-  },
-  {
-    id: "ollama",
-    name: "Ollama",
-    models: [
-      { id: "llama2", name: "Llama 2" },
-      { id: "mistral", name: "Mistral" },
-      { id: "codellama", name: "Code Llama" },
-      { id: "phi", name: "Phi" },
-      { id: "neural-chat", name: "Neural Chat" },
-    ],
-  },
-];
-
-// Define interface for react-select options
-interface SelectOption {
-  value: string;
-  label: string;
-}
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
@@ -91,12 +32,15 @@ function App() {
   const [translationComplete, setTranslationComplete] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [translationTasks, setTranslationTasks] = useState<Task[]>([]);
-  const [selectedProvider, setSelectedProvider] = useState<string>("openai");
-  const [selectedModel, setSelectedModel] = useState<string>("gpt-3.5-turbo");
+  const [selectedProvider, setSelectedProvider] = useState<string>("");
+  const [selectedModel, setSelectedModel] = useState<string>("");
+  const [availableModels, setAvailableModels] = useState<AvailableModels>({});
+  const [isLoadingModels, setIsLoadingModels] = useState(false);
   const [apiKeys, setApiKeys] = useState<Record<string, string>>({
     openai: "",
     anthropic: "",
     google: "",
+    deepseek: "",
   });
   const [apiKeySaveStatus, setApiKeySaveStatus] = useState<
     "saved" | "unsaved" | "saving"
@@ -116,15 +60,62 @@ function App() {
     };
 
     // Load keys for each provider
-    llmProviders
-      .map((p) => p.id)
+    Object.keys(availableModels)
       .filter((id) => id !== "ollama")
       .forEach(loadApiKey);
-  }, []);
+  }, [availableModels]);
 
+  // Load saved provider and model on mount
   useEffect(() => {
+    if (isLoadingModels || Object.keys(availableModels).length === 0) return;
+
+    const savedProvider = localStorage.getItem("leadable-selected-provider");
+
+    if (savedProvider && availableModels[savedProvider]) {
+      setSelectedProvider(savedProvider);
+
+      const savedModel = localStorage.getItem("leadable-selected-model");
+      if (savedModel && availableModels[savedProvider].includes(savedModel)) {
+        setSelectedModel(savedModel);
+      } else if (availableModels[savedProvider].length > 0) {
+        // Fallback to first model if saved model is not available
+        setSelectedModel(availableModels[savedProvider][0]);
+      }
+    }
+  }, [availableModels, isLoadingModels]);
+
+  // Load models from API
+  useEffect(() => {
+    fetchAvailableModels();
     handleGetTasks();
   }, []);
+
+  // Fetch available models from API
+  const fetchAvailableModels = async () => {
+    setIsLoadingModels(true);
+    try {
+      const response = await fetch(`${API_URL}/models`);
+      if (!response.ok) {
+        throw new Error("Failed to fetch models");
+      }
+      const data = await response.json();
+      setAvailableModels(data);
+
+      // Set default provider and model if available
+      if (Object.keys(data).length > 0) {
+        const firstProvider = Object.keys(data)[0];
+        setSelectedProvider(firstProvider);
+
+        if (data[firstProvider] && data[firstProvider].length > 0) {
+          setSelectedModel(data[firstProvider][0]);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to fetch models:", err);
+    } finally {
+      setIsLoadingModels(false);
+    }
+  };
 
   // Debounce save to localStorage
   const debounceSaveApiKeys = useCallback(
@@ -213,7 +204,9 @@ function App() {
       formData.append("file", file);
       formData.append("source_lang", "en");
       formData.append("target_lang", "ja");
-      formData.append("model_name", selectedModel);
+      formData.append("provider", selectedProvider);
+      formData.append("model", selectedModel);
+      formData.append("api_key", apiKeys[selectedProvider]);
 
       const response = await fetch(`${API_URL}/translate`, {
         method: "POST",
@@ -272,22 +265,22 @@ function App() {
     }
   };
 
-  // function handleDeleteTask(task_id: string): void {
-  //   fetch(`${API_URL}/task/${task_id}`, {
-  //     method: "DELETE",
-  //   })
-  //     .then((response) => {
-  //       if (!response.ok) {
-  //         throw new Error("Failed to delete translation task");
-  //       }
-  //       setTranslationTasks((prev) =>
-  //         prev.filter((task) => task.task_id !== task_id),
-  //       );
-  //     })
-  //     .catch((err) => {
-  //       console.error("Failed to delete translation task:", err);
-  //     });
-  // }
+  const handleDeleteTask = (task_id: string) => {
+    fetch(`${API_URL}/task/${task_id}`, {
+      method: "DELETE",
+    })
+      .then((response) => {
+        if (!response.ok) {
+          throw new Error("Failed to delete translation task");
+        }
+        setTranslationTasks((prev) =>
+          prev.filter((task) => task.task_id !== task_id),
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to delete translation task:", err);
+      });
+  };
 
   const resetForm = () => {
     setFile(null);
@@ -298,25 +291,31 @@ function App() {
     }
   };
 
-  // Convert llmProviders models to react-select options
+  // Convert available providers to react-select options
   const getProviderOptions = (): SelectOption[] => {
-    return llmProviders.map((provider) => ({
-      value: provider.id,
-      label: provider.name,
+    return Object.keys(availableModels).map((providerId) => ({
+      value: providerId,
+      label: providerNameMap[providerId] || providerId,
     }));
+  };
+
+  // Mapping of provider IDs to display names
+  const providerNameMap: Record<string, string> = {
+    ollama: "Ollama",
+    openai: "OpenAI",
+    anthropic: "Anthropic",
+    google: "Gemini",
+    deepseek: "DeepSeek",
   };
 
   // Get all models for the selected provider as react-select options
   const getModelOptions = (): SelectOption[] => {
-    const provider = llmProviders.find((p) => p.id === selectedProvider);
-    if (!provider) return [];
+    if (!availableModels[selectedProvider]) return [];
 
-    const modelOptions = provider.models.map((model) => ({
-      value: model.id,
-      label: model.name,
+    return availableModels[selectedProvider].map((modelId) => ({
+      value: modelId,
+      label: modelId,
     }));
-
-    return modelOptions;
   };
 
   const handleProviderChange = (option: SelectOption | null) => {
@@ -325,27 +324,25 @@ function App() {
     const newProvider = option.value;
     setSelectedProvider(newProvider);
 
+    // Save to localStorage
+    localStorage.setItem("leadable-selected-provider", newProvider);
+
     // Set default model for the selected provider
-    const provider = llmProviders.find((p) => p.id === newProvider);
-    if (provider && provider.models.length > 0) {
-      setSelectedModel(provider.models[0].id);
+    if (
+      availableModels[newProvider] &&
+      availableModels[newProvider].length > 0
+    ) {
+      const defaultModel = availableModels[newProvider][0];
+      setSelectedModel(defaultModel);
+      localStorage.setItem("leadable-selected-model", defaultModel);
     }
   };
 
   const handleModelChange = (option: SelectOption | null) => {
     if (!option) return;
-    setSelectedModel(option.value);
-  };
-
-  // Find the current selected option
-  const getCurrentModelOption = (): SelectOption | undefined => {
-    return getModelOptions().find((option) => option.value === selectedModel);
-  };
-
-  const getCurrentProviderOption = (): SelectOption | undefined => {
-    return getProviderOptions().find(
-      (option) => option.value === selectedProvider,
-    );
+    const model = option.value;
+    setSelectedModel(model);
+    localStorage.setItem("leadable-selected-model", model);
   };
 
   const handleApiKeyChange = (e: ChangeEvent<HTMLInputElement>) => {
@@ -451,7 +448,7 @@ function App() {
               {file && !translationComplete && (
                 <button
                   type="button"
-                  className={`btn btn-primary ${isTranslating ? "btn-disabled" : ""}`}
+                  className={`btn btn-neutral ${isTranslating ? "btn-disabled" : ""}`}
                   onClick={handleTranslate}
                   disabled={isTranslating}
                 >
@@ -504,39 +501,83 @@ function App() {
                   </tr>
                 </thead>
                 <tbody>
-                  {translationTasks.map((task: Task) => (
-                    <tr key={task.task_id} className="hover">
-                      <td className="max-w-xs truncate">
-                        {task.original_filename}
-                      </td>
-                      <td>
-                        <span className="badge badge-success">完了</span>
-                      </td>
-                      <td>{new Date(task.timestamp).toLocaleString()}</td>
-                      <td className="text-right">
-                        <div className="join">
-                          <a
-                            href={task.translated_file_url}
-                            className="join-item hover:bg-gray-200"
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            <SquareArrowOutUpRight size={20} />
-                          </a>
-                          {/*
-                          <button
-                            type="button"
-                            className="btn btn-sm join-item hover:bg-red-200 border-none"
-                            onClick={() => handleDeleteTask(task.task_id)}
-                            aria-label="削除"
-                          >
-                            <Trash2 size={18} />
-                          </button>
-                          */}
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                  {translationTasks
+                    .slice()
+                    .sort(
+                      (a, b) =>
+                        new Date(b.timestamp).getTime() -
+                        new Date(a.timestamp).getTime(),
+                    )
+                    .map((task: Task) => (
+                      <tr key={task.task_id} className="hover">
+                        <td className="max-w-xs truncate">
+                          {task.original_filename}
+                        </td>
+                        <td>
+                          <span className="badge badge-primary">完了</span>
+                        </td>
+                        <td>{new Date(task.timestamp).toLocaleString()}</td>
+                        <td className="text-right">
+                          <div className="join">
+                            <a
+                              href={task.translated_file_url}
+                              className="btn btn-sm join-item hover:bg-blue-200 border-none"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              aria-label="開く"
+                            >
+                              <SquareArrowOutUpRight size={18} />
+                            </a>
+                            <button
+                              type="button"
+                              className="btn btn-sm join-item hover:bg-red-200 border-none"
+                              onClick={() =>
+                                (
+                                  document.getElementById(
+                                    `delete-modal-${task.task_id}`,
+                                  ) as HTMLDialogElement
+                                )?.showModal()
+                              }
+                              aria-label="削除"
+                            >
+                              <Trash2 size={18} />
+                            </button>
+
+                            {/* Delete confirmation modal */}
+                            <dialog
+                              id={`delete-modal-${task.task_id}`}
+                              className="modal modal-bottom sm:modal-middle"
+                            >
+                              <div className="modal-box">
+                                <p className="py-4 text-xl">
+                                  「{task.original_filename}
+                                  」を削除してもよろしいですか？
+                                </p>
+                                <div className="modal-action">
+                                  <form method="dialog">
+                                    <button className="btn mr-2">
+                                      キャンセル
+                                    </button>
+                                  </form>
+                                  <button
+                                    type="button"
+                                    className="btn btn-error"
+                                    onClick={() => {
+                                      handleDeleteTask(task.task_id);
+                                      document.getElementById(
+                                        `delete-modal-${task.task_id}`,
+                                      );
+                                    }}
+                                  >
+                                    削除する
+                                  </button>
+                                </div>
+                              </div>
+                            </dialog>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                 </tbody>
               </table>
             </div>
@@ -546,75 +587,129 @@ function App() {
         {/* Settings */}
         <div className="card bg-slate-100 mt-8 rounded-box">
           <div className="card-body">
-            <h3 className="card-title text-lg flex items-center gap-2">
-              <Settings size={18} />
-              LLM設定
-            </h3>
+            <div className="flex justify-between items-center">
+              <h3 className="card-title text-lg flex items-center gap-2">
+                <Settings size={18} />
+                LLM設定
+              </h3>
+              {selectedProvider && selectedModel && (
+                <div className="text-sm font-medium">
+                  <span className="badge badge-secondary">
+                    {providerNameMap[selectedProvider] || selectedProvider}
+                  </span>{" "}
+                  /{" "}
+                  <span className="badge badge-secondary">{selectedModel}</span>
+                </div>
+              )}
+            </div>
+            {selectedProvider !== "ollama" && !apiKeys[selectedProvider] && (
+              <div className="alert alert-warning py-2 mb-2 text-sm">
+                <span>
+                  APIキーが必要です。下部でAPIキーを設定してください。
+                </span>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
               <div className="form-control">
                 <label htmlFor="provider-select" className="label">
                   <span className="label-text">プロバイダー</span>
                 </label>
-                <Select
-                  inputId="provider-select"
-                  className="basic-single"
-                  classNamePrefix="select"
-                  value={getCurrentProviderOption()}
-                  onChange={handleProviderChange}
-                  options={getProviderOptions()}
-                  isSearchable={false}
-                  placeholder="プロバイダーを選択"
-                />
+                <select
+                  id="provider-select"
+                  className="select select-bordered w-full bg-white"
+                  value={selectedProvider}
+                  onChange={(e) => {
+                    const newProvider = e.target.value;
+                    handleProviderChange({
+                      value: newProvider,
+                      label: providerNameMap[newProvider] || newProvider,
+                    });
+                  }}
+                  disabled={isLoadingModels}
+                >
+                  <option disabled value="">
+                    プロバイダーを選択
+                  </option>
+                  {getProviderOptions().map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {isLoadingModels && (
+                  <div className="mt-2 text-center">
+                    <span className="loading loading-spinner loading-sm" />
+                  </div>
+                )}
               </div>
 
               <div className="form-control">
                 <label htmlFor="model-select" className="label">
                   <span className="label-text">モデル</span>
                 </label>
-                <Select
-                  inputId="model-select"
-                  className="basic-single"
-                  classNamePrefix="select"
-                  value={getCurrentModelOption()}
-                  onChange={handleModelChange}
-                  options={getModelOptions()}
-                  isSearchable={true}
-                  placeholder="モデルを選択"
-                />
+                <select
+                  id="model-select"
+                  className="select select-bordered w-full bg-white"
+                  value={selectedModel}
+                  onChange={(e) => {
+                    const newModel = e.target.value;
+                    handleModelChange({
+                      value: newModel,
+                      label: newModel,
+                    });
+                  }}
+                  disabled={isLoadingModels}
+                >
+                  <option disabled value="">
+                    モデルを選択
+                  </option>
+                  {getModelOptions().map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {isLoadingModels && (
+                  <div className="mt-2 text-center">
+                    <span className="loading loading-spinner loading-sm" />
+                  </div>
+                )}
               </div>
             </div>
 
-            <div className="mt-4">
-              <div className="form-control w-full">
-                <label htmlFor="api-key-input" className="label">
-                  <span className="label-text">API キー</span>
-                  <span className="label-text-alt flex items-center gap-1">
-                    {apiKeySaveStatus === "saved"
-                      ? "保存済み"
-                      : apiKeySaveStatus === "saving"
-                        ? "保存中..."
-                        : "未保存"}
-                    {renderSaveStatus()}
-                  </span>
-                </label>
-                <div className="join w-full">
-                  <input
-                    id="api-key-input"
-                    type="password"
-                    placeholder="sk-*************************************"
-                    className="input input-bordered input-primary w-full bg-white"
-                    value={apiKeys[selectedProvider] || ""}
-                    onChange={handleApiKeyChange}
-                  />
+            {selectedProvider !== "ollama" && (
+              <div className="mt-4">
+                <div className="form-control w-full">
+                  <label htmlFor="api-key-input" className="label">
+                    <span className="label-text">API キー</span>
+                    <span className="label-text-alt flex items-center gap-1">
+                      {apiKeySaveStatus === "saved"
+                        ? "保存済み"
+                        : apiKeySaveStatus === "saving"
+                          ? "保存中..."
+                          : "未保存"}
+                      {renderSaveStatus()}
+                    </span>
+                  </label>
+                  <div className="join w-full">
+                    <input
+                      id="api-key-input"
+                      type="password"
+                      placeholder="sk-*************************************"
+                      className="input input-bordered input-primary w-full bg-white"
+                      value={apiKeys[selectedProvider] || ""}
+                      onChange={handleApiKeyChange}
+                    />
+                  </div>
+                  <label htmlFor="api-key-input" className="label">
+                    <span className="label-text-alt text-base-content/70 mt-2">
+                      APIキーはローカルに保存され、共有されません。
+                    </span>
+                  </label>
                 </div>
-                <label htmlFor="api-key-input" className="label">
-                  <span className="label-text-alt text-base-content/70 mt-2">
-                    APIキーを入力してください。これはローカルに保存され、他のユーザーとは共有されません。
-                  </span>
-                </label>
               </div>
-            </div>
+            )}
           </div>
         </div>
       </div>

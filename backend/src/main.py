@@ -1,7 +1,6 @@
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
-from logging import getLogger
 
 from discord_webhook import DiscordWebhook
 from fastapi import FastAPI, File, Form, UploadFile
@@ -22,10 +21,10 @@ from service.health import (
     health_check_ollama,
     health_check_storage,
 )
-from service.llm import show_models
+from service.llm import check_valid_model, get_models
+from service.log import logger
 from service.storage import get_file_url, initialize_storage, upload_file
-
-logger = getLogger(__name__)
+from service.translate import TranslationService
 
 tags_metadata = [
     {"name": "api"},
@@ -92,10 +91,22 @@ async def translate_endpoint(
     source_lang: str = Form("en"),
     target_lang: str = Form("ja"),
     file: UploadFile = File(...),
-    model_name: str = Form(None),
+    provider: str = Form(None),
+    model: str = Form(None),
+    api_key: str = Form(None),
 ) -> JSONResponse:
     try:
         data = await file.read()
+
+        logger.info(f"[{file.filename}] {provider} / {model}")
+
+        # Check if the model is valid
+        if provider and model and api_key:
+            is_valid_model = await check_valid_model(provider, model, api_key)
+            if not is_valid_model:
+                return JSONResponse(
+                    status_code=400, content={"message": "Invalid model"}
+                )
 
         # Upload the file to storage
         timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -114,15 +125,15 @@ async def translate_endpoint(
         }
 
         # Translate the PDF file
-        # is_translate_success, result_pdf = await pdf_translate(
-        #     data, model_name=model_name
-        # )
-        # if not is_translate_success:
-        #     return JSONResponse(
-        #         status_code=400, content={"message": "Translation failed"}
-        #     )
+        is_translate_success, result_pdf = await TranslationService.pdf_translate(
+            data, provider, model, api_key, source_lang, target_lang
+        )
+        if not is_translate_success:
+            return JSONResponse(
+                status_code=400, content={"message": "Translation failed"}
+            )
         is_upload_success = await upload_file(
-            data, f"translated/{filename}", file.content_type
+            result_pdf, f"translated/{filename}", file.content_type
         )
         if not is_upload_success:
             return JSONResponse(
@@ -140,7 +151,7 @@ async def translate_endpoint(
         if discord_webhook_url := os.getenv("DISCORD_WEBHOOK_URL"):
             webhook = DiscordWebhook(
                 url=discord_webhook_url,
-                content=f"翻訳が終了しました！ [{filename}]({get_file_url(f'translated/{filename}')})",
+                content=f"翻訳が完了しました！ [{filename}]({get_file_url(f'translated/{filename}')})",
             )
             response = webhook.execute()
             logger.info(f"Discord Webhook response: {response}")
@@ -185,9 +196,9 @@ async def delete_task_endpoint(task_id: str):
 
 
 @app.get("/models", tags=["llm"])
-async def models():
+async def get_models_endpoint():
     try:
-        return await show_models()
+        return await get_models()
     except Exception as e:
         logger.error(f"Model list error: {str(e)}")
         return {

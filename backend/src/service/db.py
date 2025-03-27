@@ -1,12 +1,11 @@
 import os
 import uuid
 from datetime import datetime
-from logging import getLogger
 
 from pymongo import MongoClient
 from pymongo.errors import OperationFailure
 
-logger = getLogger(__name__)
+from service.log import logger
 
 # MongoDB configuration
 MONGO_HOST = os.getenv("MONGO_HOST", "mongo")

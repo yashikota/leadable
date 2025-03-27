@@ -1,11 +1,8 @@
-from logging import getLogger
-
 from service.db import MONGO_DB, get_mongo_client
 from service.llm import get_ollama_client
+from service.log import logger
 from service.mq import get_rabbitmq_client
 from service.storage import DEFAULT_BUCKET, get_minio_client
-
-logger = getLogger(__name__)
 
 
 async def health_check_backend():

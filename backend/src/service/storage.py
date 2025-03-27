@@ -1,11 +1,10 @@
 import json
 import os
 import tempfile
-from logging import getLogger
 
 import minio
 
-logger = getLogger(__name__)
+from service.log import logger
 
 # MinIO client configuration
 MINIO_ENDPOINT = os.getenv("MINIO_ENDPOINT", "minio:9000")

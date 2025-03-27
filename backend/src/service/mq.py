@@ -1,12 +1,9 @@
 import asyncio
 import os
 from enum import Enum
-from logging import getLogger
 
 import pika
 from pika.adapters.asyncio_connection import AsyncioConnection
-
-logger = getLogger(__name__)
 
 # RabbitMQ configuration
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
