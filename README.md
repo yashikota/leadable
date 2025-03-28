@@ -5,28 +5,13 @@
 
 ## 使い方
 
-1. 翻訳したいPDFをエリアにドロップ or クリックでファイルダイアログから選択
-   ![1](docs/images/1.png)
+![1](docs/images/1.png)
 
-2. `PDFを翻訳` ボタンを押して翻訳を実行する
-   ![2](docs/images/2.png)
+1. 翻訳したいPDFを上部エリアにドロップ or クリックでファイルダイアログから選択し、アップロードする
 
-3. 翻訳が完了したら `ダウンロード` のボタンが現れる。また履歴に追加される  
-   ![3](docs/images/3.png)
+2. アップロード完了後、一覧に追加される。ステータスは `待機中`, `処理中`, `完了`, `失敗` の4つ。リロードしなくても自動更新される。  
 
-## LLM設定
-
-1. プロバイダーとモデルを選択して使用することができます。
-   ![4](docs/images/4.png)
-
-2. モデル選択欄は検索バーも兼ねています。  
-   ![5](docs/images/5.png)
-
-3. プロバイダーが `Ollama` の場合のみモデルを追加することができます。
-   ![6](docs/images/6.png)
-> [!WARNING]
-> Ollama もしくは HuggingFaceにモデルがある場合のみ  
-> モデルサイズが大きいためダウンロードに時間がかかります。時間をおいて使用してください  
+3. 下部のLLM設定から、翻訳に使用するプロバイダーとモデルを選択可能。プロバイダーは `Ollama (local)`, `OpenAI`, `Anthropic`, `Gemini`, `DeepSeek` の5つ。Ollama以外はAPI Keyが必須。  
 
 ## 立ち上げ
 
@@ -36,8 +21,4 @@
 make up
 ```
 
-以下立ち上がるサイト
-
-- [Leadable](http://localhost:8877) - メインアプリケーション
-- [Open WebUI](http://localhost:8778) - Ollamaとのチャット用
-- [Ollama Model Manager](http://localhost:8788) - Ollama用のモデル管理
+<http://localhost:8877> にアプリケーションが立ち上がります
