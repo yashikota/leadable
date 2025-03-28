@@ -1,9 +1,12 @@
 import asyncio
+import json
 import os
 from enum import Enum
 
 import pika
 from pika.adapters.asyncio_connection import AsyncioConnection
+
+from service.log import logger
 
 # RabbitMQ configuration
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
@@ -14,6 +17,7 @@ RABBITMQ_VHOST = os.getenv("RABBITMQ_VHOST", "/")
 
 # Queue names
 TRANSLATION_QUEUE = "translation_requests"
+TASK_UPDATE_QUEUE = "task_updates"
 
 
 class TaskStatus(Enum):
@@ -30,7 +34,6 @@ def get_rabbitmq_connection_params() -> pika.ConnectionParameters:
         port=RABBITMQ_PORT,
         virtual_host=RABBITMQ_VHOST,
         credentials=credentials,
-        # Add heartbeat for better connection stability
         heartbeat=600,
         blocked_connection_timeout=300,
     )
@@ -40,7 +43,7 @@ def get_rabbitmq_client():
     return pika.BlockingConnection(get_rabbitmq_connection_params())
 
 
-async def get_async_rabbitmq_connection():
+async def get_rabbitmq_connection():
     future = asyncio.Future()
 
     def on_open(connection):
@@ -51,7 +54,6 @@ async def get_async_rabbitmq_connection():
         if not future.done():
             future.set_exception(Exception(f"Failed to connect to RabbitMQ: {error}"))
 
-    # Use loop=asyncio.get_event_loop() for compatibility if needed
     AsyncioConnection(
         get_rabbitmq_connection_params(),
         on_open_callback=on_open,
@@ -65,8 +67,75 @@ def ensure_queue_exists(channel, queue_name: str) -> None:
     channel.queue_declare(queue=queue_name, durable=True)
 
 
-async def initialize_translation_service(translate_function=None):
-    """
-    Initialize the translation service and start the worker using DB persistence.
-    """
-    pass
+async def publish_task(task_data):
+    try:
+        connection = get_rabbitmq_client()
+        channel = connection.channel()
+
+        ensure_queue_exists(channel, TRANSLATION_QUEUE)
+
+        message = json.dumps(task_data)
+        channel.basic_publish(
+            exchange="",
+            routing_key=TRANSLATION_QUEUE,
+            body=message,
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                content_type="application/json",
+            ),
+        )
+
+        connection.close()
+        logger.info(f"Task {task_data.get('task_id')} published to queue")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to publish task to queue: {str(e)}")
+        return False
+
+
+async def publish_task_update(task_id, status, message=None):
+    try:
+        update_data = {
+            "task_id": task_id,
+            "status": status,
+        }
+        if message:
+            update_data["message"] = message
+
+        connection = get_rabbitmq_client()
+        channel = connection.channel()
+
+        ensure_queue_exists(channel, TASK_UPDATE_QUEUE)
+
+        channel.basic_publish(
+            exchange="",
+            routing_key=TASK_UPDATE_QUEUE,
+            body=json.dumps(update_data),
+            properties=pika.BasicProperties(
+                delivery_mode=2,
+                content_type="application/json",
+            ),
+        )
+
+        connection.close()
+        logger.info(f"Task update published for {task_id}: {status}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to publish task update: {str(e)}")
+        return False
+
+
+async def initialize_mq() -> bool:
+    try:
+        connection = get_rabbitmq_client()
+        channel = connection.channel()
+
+        ensure_queue_exists(channel, TRANSLATION_QUEUE)
+        ensure_queue_exists(channel, TASK_UPDATE_QUEUE)
+
+        connection.close()
+        logger.info("Translation service initialized successfully")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize translation service: {str(e)}")
+        return False

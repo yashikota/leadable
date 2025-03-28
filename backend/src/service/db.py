@@ -53,8 +53,7 @@ async def update_task_status(task_id: str, status: str):
     try:
         tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
         result = tasks_collection.update_one(
-            {"task_id": task_id},
-            {"$set": {"status": status}}
+            {"task_id": task_id}, {"$set": {"status": status}}
         )
 
         if result.matched_count == 0:

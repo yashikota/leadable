@@ -1,11 +1,13 @@
+import asyncio
+import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime
 
 from discord_webhook import DiscordWebhook
-from fastapi import FastAPI, File, Form, UploadFile
+from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from nanoid import generate
 
 from service.db import (
@@ -15,6 +17,7 @@ from service.db import (
     get_task,
     initialize_database,
     store_result,
+    update_task_status,
 )
 from service.health import (
     health_check_backend,
@@ -25,6 +28,7 @@ from service.health import (
 )
 from service.llm import check_valid_model, get_models
 from service.log import logger
+from service.mq import initialize_mq, publish_task
 from service.storage import get_file_url, initialize_storage, upload_file
 from service.translate import TranslationService
 
@@ -43,7 +47,7 @@ async def lifespan(app: FastAPI):
         logger.info("Initializing database...")
         db_init_result = initialize_database()
         if db_init_result:
-            logger.info(f"Database initialization successful")
+            logger.info("Database initialization successful")
         else:
             logger.error("Database initialization failed")
 
@@ -129,7 +133,7 @@ async def translate_endpoint(
             )
         logger.info(f"File uploaded successfully: {filename}")
 
-        # Create a TranslationService instance
+        # Create a TranslationService instance with task information
         ts = TranslationService()
         ts.task_id = task_id
         ts.status = TaskStatus.PENDING

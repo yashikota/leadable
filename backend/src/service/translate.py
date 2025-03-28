@@ -738,7 +738,9 @@ class TranslationService:
 
     async def pdf_translate(self):
         try:
-            self.block_info = await self.extract_text_coordinates_dict(self.original_pdf_data)
+            self.block_info = await self.extract_text_coordinates_dict(
+                self.original_pdf_data
+            )
             self.text_blocks, self.fig_blocks, _ = await self.remove_blocks(
                 self.block_info, 10, lang=self.source_lang
             )
