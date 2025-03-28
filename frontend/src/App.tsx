@@ -585,23 +585,23 @@ function App() {
         )}
 
         {/* Settings */}
-        <div className="card bg-slate-100 mt-8 rounded-box">
-          <div className="card-body">
-            <div className="flex justify-between items-center">
-              <h3 className="card-title text-lg flex items-center gap-2">
-                <Settings size={18} />
-                LLM設定
-              </h3>
-              {selectedProvider && selectedModel && (
-                <div className="text-sm font-medium">
-                  <span className="badge badge-secondary">
-                    {providerNameMap[selectedProvider] || selectedProvider}
-                  </span>{" "}
-                  /{" "}
-                  <span className="badge badge-secondary">{selectedModel}</span>
-                </div>
-              )}
+        <div className="collapse collapse-arrow bg-slate-100 mt-8 rounded-box">
+          <input type="checkbox" />
+          <div className="collapse-title flex justify-between items-center">
+            <div className="text-lg font-medium flex items-center gap-2">
+              <Settings size={18} />
+              LLM設定
             </div>
+            {selectedProvider && selectedModel && (
+              <div className="text-sm font-medium">
+                <span className="badge badge-secondary">
+                  {providerNameMap[selectedProvider] || selectedProvider}
+                </span>{" "}
+                / <span className="badge badge-secondary">{selectedModel}</span>
+              </div>
+            )}
+          </div>
+          <div className="collapse-content">
             {selectedProvider !== "ollama" && !apiKeys[selectedProvider] && (
               <div className="alert alert-warning py-2 mb-2 text-sm">
                 <span>
