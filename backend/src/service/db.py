@@ -17,7 +17,7 @@ MONGO_COLLECTION_TASKS = "tasks"
 
 class TaskStatus(str, Enum):
     PENDING = "pending"
-    IN_PROGRESS = "in_progress"
+    PROCESSING = "processing"
     COMPLETED = "completed"
     FAILED = "failed"
 
@@ -67,20 +67,20 @@ async def update_task_status(task_id: str, status: str):
         return False
 
 
-async def store_result(ts) -> bool:
+async def store_result(task_data) -> bool:
     try:
         task = {
-            "task_id": ts.task_id,
-            "status": ts.status,
-            "timestamp": ts.timestamp,
-            "filename": ts.filename,
-            "original_url": ts.original_url,
-            "translated_url": ts.translated_url,
-            "source_lang": ts.source_lang,
-            "target_lang": ts.target_lang,
-            "provider": ts.provider,
-            "model_name": ts.model_name,
-            "content_type": ts.content_type,
+            "task_id": task_data.task_id,
+            "status": task_data.status,
+            "timestamp": task_data.timestamp,
+            "filename": task_data.filename,
+            "original_url": task_data.original_url,
+            "translated_url": task_data.translated_url,
+            "source_lang": task_data.source_lang,
+            "target_lang": task_data.target_lang,
+            "provider": task_data.provider,
+            "model_name": task_data.model_name,
+            "content_type": task_data.content_type,
         }
         tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
         tasks_collection.insert_one(task)

@@ -89,3 +89,23 @@ async def upload_file(file: bytes, filename: str, filetype: str) -> bool:
 def get_file_url(filename: str) -> str:
     ADDRESS = os.getenv("SERVER_ADDRESS")
     return f"http://{ADDRESS}:9000/{DEFAULT_BUCKET}/{filename}"
+
+
+async def download_file(filename: str) -> bytes:
+    try:
+        with tempfile.NamedTemporaryFile(delete=False) as temp_file:
+            temp_path = temp_file.name
+
+        client = get_minio_client()
+        client.fget_object(
+            bucket_name=DEFAULT_BUCKET, object_name=filename, file_path=temp_path
+        )
+
+        with open(temp_path, "rb") as file:
+            data = file.read()
+
+        os.unlink(temp_path)
+        return data
+    except Exception as e:
+        logger.error(f"Error downloading file {filename}: {str(e)}")
+        raise

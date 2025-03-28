@@ -71,20 +71,17 @@ async def publish_task(task_data):
     try:
         connection = get_rabbitmq_client()
         channel = connection.channel()
-
         ensure_queue_exists(channel, TRANSLATION_QUEUE)
 
-        message = json.dumps(task_data)
         channel.basic_publish(
             exchange="",
             routing_key=TRANSLATION_QUEUE,
-            body=message,
+            body=json.dumps(task_data),
             properties=pika.BasicProperties(
                 delivery_mode=2,
                 content_type="application/json",
             ),
         )
-
         connection.close()
         logger.info(f"Task {task_data.get('task_id')} published to queue")
         return True

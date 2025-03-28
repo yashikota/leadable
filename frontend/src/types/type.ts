@@ -1,6 +1,6 @@
 enum TaskStatus {
   PENDING = "pending",
-  IN_PROGRESS = "in_progress",
+  PROCESSING = "processing",
   COMPLETED = "completed",
   FAILED = "failed",
 }

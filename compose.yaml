@@ -189,6 +189,24 @@ services:
       retries: 3
       test: rabbitmqctl status
       timeout: 30s
+  worker:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    container_name: worker
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      - PYTHONPATH=./src
+      - TZ=Asia/Tokyo
+      - SERVER_ADDRESS=${SERVER_ADDRESS}
+      - MINIO_SECRET_KEY=${MINIO_PASSWORD}
+      - MONGO_INITDB_ROOT_PASSWORD=example
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    command: python /app/src/service/worker.py
+    working_dir: /app
+    restart: always
 volumes:
   configdb-data:
   minio-data:

@@ -46,6 +46,66 @@ function App() {
     "saved" | "unsaved" | "saving"
   >("saved");
   const [apiKeyTimer, setApiKeyTimer] = useState<NodeJS.Timeout | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+
+  // Set up SSE connection
+  useEffect(() => {
+    // Close any existing connection
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+    }
+
+    // Create a new EventSource connection
+    const eventSource = new EventSource(`${API_URL}/tasks/updates`);
+    eventSourceRef.current = eventSource;
+
+    // Connection opened
+    eventSource.addEventListener("connected", (event) => {
+      console.log("SSE connection established", event);
+    });
+
+    // Handle task updates
+    eventSource.addEventListener("update", (event) => {
+      try {
+        const data = JSON.parse(event.data);
+        if (data?.task_id && data.status) {
+          // Update the task in our local state
+          setTranslationTasks((prevTasks) =>
+            prevTasks.map((task) =>
+              task.task_id === data.task_id
+                ? { ...task, status: data.status }
+                : task,
+            ),
+          );
+
+          // If a task is completed or failed, refresh the task list to get the latest data
+          if (data.status === "completed" || data.status === "failed") {
+            handleGetTasks();
+          }
+        }
+      } catch (error) {
+        console.error("Error parsing SSE update:", error);
+      }
+    });
+
+    // Error handling
+    eventSource.addEventListener("error", (event) => {
+      console.error("SSE connection error:", event);
+
+      // Try to reconnect after a delay
+      setTimeout(() => {
+        if (eventSourceRef.current) {
+          eventSourceRef.current.close();
+          eventSourceRef.current = new EventSource(`${API_URL}/tasks/updates`);
+        }
+      }, 5000);
+    });
+
+    // Clean up on unmount
+    return () => {
+      eventSource.close();
+    };
+  }, []);
 
   // Load saved API keys on mount
   useEffect(() => {
@@ -95,6 +155,14 @@ function App() {
     setIsLoadingModels(true);
     try {
       const response = await fetch(`${API_URL}/models`);
+
+      // Check for error header
+      const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
+      if (errorMessage) {
+        console.error("Failed to fetch models:", errorMessage);
+        throw new Error(errorMessage);
+      }
+
       if (!response.ok) {
         throw new Error("Failed to fetch models");
       }
@@ -195,10 +263,8 @@ function App() {
 
   const handleTranslate = async () => {
     if (!file) return;
-
     setIsTranslating(true);
     setError(null);
-
     try {
       const formData = new FormData();
       formData.append("file", file);
@@ -207,15 +273,17 @@ function App() {
       formData.append("provider", selectedProvider);
       formData.append("model", selectedModel);
       formData.append("api_key", apiKeys[selectedProvider]);
-
       const response = await fetch(`${API_URL}/translate`, {
         method: "POST",
         body: formData,
       });
 
-      if (response.status === 404) {
-        throw new Error("プロバイダーまたはモデルが見つかりません");
+      // Check for error header
+      const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
+      if (errorMessage) {
+        throw new Error(errorMessage);
       }
+
       if (response.status !== 200) {
         const errorData = await response
           .json()
@@ -241,6 +309,14 @@ function App() {
   const handleGetTasks = async () => {
     try {
       const response = await fetch(`${API_URL}/tasks`);
+
+      // Check for error header
+      const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
+      if (errorMessage) {
+        console.error("Failed to fetch translation tasks:", errorMessage);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error("Failed to fetch translation tasks");
       }
@@ -269,6 +345,13 @@ function App() {
       method: "DELETE",
     })
       .then((response) => {
+        // Check for error header
+        const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
+        if (errorMessage) {
+          console.error("Failed to delete translation task:", errorMessage);
+          throw new Error(errorMessage);
+        }
+
         if (!response.ok) {
           throw new Error("Failed to delete translation task");
         }
@@ -331,7 +414,7 @@ function App() {
       case "processing":
         return "badge-info";
       case "completed":
-        return "badge-success";
+        return "badge-primary";
       case "failed":
         return "badge-error";
       default:
@@ -485,7 +568,7 @@ function App() {
                   {isTranslating ? (
                     <>
                       <span className="loading loading-spinner" />
-                      翻訳中...
+                      アップロード中
                     </>
                   ) : (
                     "PDFを翻訳"
@@ -551,15 +634,28 @@ function App() {
                             )}
                             <button
                               type="button"
-                              className="btn btn-sm join-item hover:bg-red-200 border-none"
-                              onClick={() =>
-                                (
-                                  document.getElementById(
-                                    `delete-modal-${task.task_id}`,
-                                  ) as HTMLDialogElement
-                                )?.showModal()
+                              className={`btn btn-sm join-item hover:bg-red-200 border-none ${
+                                task.status === "processing" ||
+                                task.status === "pending"
+                                  ? "opacity-50 cursor-not-allowed"
+                                  : ""
+                              }`}
+                              onClick={() => {
+                                if (
+                                  task.status !== "processing" &&
+                                  task.status !== "pending"
+                                ) {
+                                  (
+                                    document.getElementById(
+                                      `delete-modal-${task.task_id}`,
+                                    ) as HTMLDialogElement
+                                  )?.showModal();
+                                }
+                              }}
+                              disabled={
+                                task.status === "processing" ||
+                                task.status === "pending"
                               }
-                              aria-label="削除"
                             >
                               <Trash2 size={18} />
                             </button>
