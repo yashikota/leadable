@@ -1,7 +1,7 @@
 import { ExternalLink, Settings } from "lucide-react";
-import { ApiKeyInput } from "./ApiKeyInput";
-import type { AvailableModels, SelectOption } from "../types/type";
 import { ADDRESS } from "../App";
+import type { AvailableModels, SelectOption } from "../types/type";
+import { ApiKeyInput } from "./ApiKeyInput";
 
 type LLMSettingsProps = {
   selectedProvider: string;
@@ -67,9 +67,7 @@ export function LLMSettings({
       <div className="collapse-content">
         {selectedProvider !== "ollama" && !apiKeys[selectedProvider] && (
           <div className="alert alert-warning py-2 mb-2 text-sm">
-            <span>
-              APIキーが必要です。下部でAPIキーを設定してください。
-            </span>
+            <span>APIキーが必要です。下部でAPIキーを設定してください。</span>
           </div>
         )}
 

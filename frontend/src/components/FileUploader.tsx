@@ -1,3 +1,4 @@
+import { CircleCheckBig, CircleX, FileUp } from "lucide-react";
 import {
   type ChangeEvent,
   type DragEvent,
@@ -5,7 +6,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { CircleCheckBig, CircleX, FileUp } from "lucide-react";
 
 type FileUploaderProps = {
   onFileSelected: (file: File | null) => void;
@@ -77,10 +77,11 @@ export function FileUploader({
     <div className="card">
       <div className="card-body">
         <div
-          className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${isDragging
+          className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${
+            isDragging
               ? "border-primary bg-base-200"
               : "border-base-300 hover:border-primary/50"
-            }`}
+          }`}
           onDragOver={handleDragOver}
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
@@ -98,9 +99,7 @@ export function FileUploader({
           {!file ? (
             <div className="flex flex-col items-center justify-center">
               <FileUp size={48} className="text-base-content/70" />
-              <p className="mt-4 text-lg font-medium">
-                PDFファイルをドロップ
-              </p>
+              <p className="mt-4 text-lg font-medium">PDFファイルをドロップ</p>
               <p className="mt-2 text-sm text-base-content/70">
                 または、クリックしてファイルを選択
               </p>

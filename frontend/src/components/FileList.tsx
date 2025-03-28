@@ -130,9 +130,7 @@ export function FileList({ tasks, onDeleteTask }: FileListProps) {
                           </p>
                           <div className="modal-action">
                             <form method="dialog">
-                              <button className="btn mr-2">
-                                キャンセル
-                              </button>
+                              <button className="btn mr-2">キャンセル</button>
                             </form>
                             <button
                               type="button"

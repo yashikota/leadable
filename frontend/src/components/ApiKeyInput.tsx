@@ -1,5 +1,5 @@
-import { type ChangeEvent } from "react";
 import { Check, Save } from "lucide-react";
+import type { ChangeEvent } from "react";
 
 type ApiKeyInputProps = {
   provider: string;

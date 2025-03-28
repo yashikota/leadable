@@ -1,15 +1,10 @@
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import "./App.css";
-import type { AvailableModels, Task } from "./types/type";
-import { Navbar } from "./components/Navbar";
-import { FileUploader } from "./components/FileUploader";
 import { FileList } from "./components/FileList";
+import { FileUploader } from "./components/FileUploader";
 import { LLMSettings } from "./components/LLMSettings";
+import { Navbar } from "./components/Navbar";
+import type { AvailableModels, Task } from "./types/type";
 
 export const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
 const API_URL = `http://${ADDRESS}:8866`;
@@ -360,10 +355,7 @@ function App() {
         />
 
         {/* File List */}
-        <FileList
-          tasks={translationTasks}
-          onDeleteTask={handleDeleteTask}
-        />
+        <FileList tasks={translationTasks} onDeleteTask={handleDeleteTask} />
 
         {/* LLM Settings */}
         <LLMSettings
