@@ -16,6 +16,7 @@ RUN --mount=type=cache,id=pnpm,target=/pnpm/store pnpm install --frozen-lockfile
 RUN pnpm run build
 
 FROM caddy:2.9.1-alpine
+COPY Caddyfile /etc/caddy/Caddyfile
 COPY --from=build /app/dist /srv
 EXPOSE 8877
-CMD ["caddy", "file-server", "-r", "/srv", "-l", ":8877"]
+CMD ["caddy", "run", "--config", "/etc/caddy/Caddyfile"]
