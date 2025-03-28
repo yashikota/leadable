@@ -77,12 +77,20 @@ async def get_deepseek_models():
         return str(e)
 
 
+def get_api_params(provider: str, api_key: str) -> dict:
+    if provider == "ollama":
+        return {"api_base": OLLAMA_HOST_URL}
+    else:
+        return {"api_key": api_key}
+
+
 async def check_valid_model(provider, model, api_key: str) -> bool:
     try:
+        api_params = get_api_params(provider, api_key)
         response = completion(
             model=f"{convert_model(provider, model)}",
             messages=[{"role": "user", "content": "あなたは誰？"}],
-            api_key=api_key,
+            **api_params,
         )
         logger.info(f"Model check response: {response}")
         return True

@@ -4,9 +4,19 @@ import os
 from enum import Enum
 
 import pika
+from bson import ObjectId
 from pika.adapters.asyncio_connection import AsyncioConnection
 
 from service.log import logger
+
+
+# Custom JSON encoder for MongoDB ObjectId
+class MongoJSONEncoder(json.JSONEncoder):
+    def default(self, obj):
+        if isinstance(obj, ObjectId):
+            return str(obj)
+        return super().default(obj)
+
 
 # RabbitMQ configuration
 RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
@@ -76,7 +86,7 @@ async def publish_task(task_data):
         channel.basic_publish(
             exchange="",
             routing_key=TRANSLATION_QUEUE,
-            body=json.dumps(task_data),
+            body=json.dumps(task_data, cls=MongoJSONEncoder),
             properties=pika.BasicProperties(
                 delivery_mode=2,
                 content_type="application/json",
@@ -107,7 +117,7 @@ async def publish_task_update(task_id, status, message=None):
         channel.basic_publish(
             exchange="",
             routing_key=TASK_UPDATE_QUEUE,
-            body=json.dumps(update_data),
+            body=json.dumps(update_data, cls=MongoJSONEncoder),
             properties=pika.BasicProperties(
                 delivery_mode=2,
                 content_type="application/json",

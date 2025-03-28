@@ -510,11 +510,10 @@ function App() {
         <div className="card">
           <div className="card-body">
             <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${
-                isDragging
+              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${isDragging
                   ? "border-primary bg-base-200"
                   : "border-base-300 hover:border-primary/50"
-              }`}
+                }`}
               onDragOver={handleDragOver}
               onDragLeave={handleDragLeave}
               onDrop={handleDrop}
@@ -571,7 +570,7 @@ function App() {
                       アップロード中
                     </>
                   ) : (
-                    "PDFを翻訳"
+                    "アップロード"
                   )}
                 </button>
               )}
@@ -597,8 +596,8 @@ function App() {
                     .slice()
                     .sort(
                       (a, b) =>
-                        new Date(b.timestamp).getTime() -
-                        new Date(a.timestamp).getTime(),
+                        new Date(b.created_at).getTime() -
+                        new Date(a.created_at).getTime(),
                     )
                     .map((task: Task) => (
                       <tr key={task.task_id} className="hover">
@@ -610,7 +609,7 @@ function App() {
                             {getStatusLabel(task.status)}
                           </span>
                         </td>
-                        <td>{new Date(task.timestamp).toLocaleString()}</td>
+                        <td>{new Date(task.created_at).toLocaleString()}</td>
                         <td className="text-right">
                           <div className="join">
                             {task.status === "completed" ? (
@@ -634,28 +633,23 @@ function App() {
                             )}
                             <button
                               type="button"
-                              className={`btn btn-sm join-item hover:bg-red-200 border-none ${
-                                task.status === "processing" ||
-                                task.status === "pending"
-                                  ? "opacity-50 cursor-not-allowed"
-                                  : ""
-                              }`}
+                              className="btn btn-sm join-item hover:bg-red-200 border-none"
                               onClick={() => {
-                                if (
-                                  task.status !== "processing" &&
-                                  task.status !== "pending"
-                                ) {
-                                  (
-                                    document.getElementById(
-                                      `delete-modal-${task.task_id}`,
-                                    ) as HTMLDialogElement
-                                  )?.showModal();
-                                }
+                                (
+                                  document.getElementById(
+                                    `delete-modal-${task.task_id}`,
+                                  ) as HTMLDialogElement
+                                ).showModal();
+                                setTimeout(() => {
+                                  const modal = document.getElementById(
+                                    `delete-modal-${task.task_id}`,
+                                  ) as HTMLDialogElement;
+                                  if (modal.open) {
+                                    modal.showModal();
+                                  }
+                                }, 0);
                               }}
-                              disabled={
-                                task.status === "processing" ||
-                                task.status === "pending"
-                              }
+                              aria-label="削除"
                             >
                               <Trash2 size={18} />
                             </button>

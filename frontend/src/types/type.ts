@@ -9,7 +9,7 @@ export interface Task {
   _id: string;
   task_id: string;
   status: TaskStatus;
-  timestamp: string;
+  created_at: string;
   filename: string;
   original_url: string;
   translated_url: string;

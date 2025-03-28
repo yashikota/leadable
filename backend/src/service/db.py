@@ -67,23 +67,10 @@ async def update_task_status(task_id: str, status: str):
         return False
 
 
-async def store_result(task_data) -> bool:
+async def store_result(task_data: dict) -> bool:
     try:
-        task = {
-            "task_id": task_data.task_id,
-            "status": task_data.status,
-            "timestamp": task_data.timestamp,
-            "filename": task_data.filename,
-            "original_url": task_data.original_url,
-            "translated_url": task_data.translated_url,
-            "source_lang": task_data.source_lang,
-            "target_lang": task_data.target_lang,
-            "provider": task_data.provider,
-            "model_name": task_data.model_name,
-            "content_type": task_data.content_type,
-        }
         tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
-        tasks_collection.insert_one(task)
+        tasks_collection.insert_one(task_data)
         return True
     except Exception as e:
         logger.error(f"Error storing result: {str(e)}")

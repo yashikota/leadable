@@ -14,7 +14,7 @@ from litellm import completion
 from tenacity import retry, stop_after_attempt, wait_fixed
 
 from service.db import TaskStatus
-from service.llm import convert_model
+from service.llm import convert_model, get_api_params
 from service.log import logger
 
 
@@ -27,7 +27,7 @@ class TranslationService:
         self.status = TaskStatus.PENDING
         self.filename = ""
         self.content_type = ""
-        self.timestamp = ""
+        self.created_at = ""
         self.original_url = ""
         self.translated_url = ""
         self.source_lang = ""
@@ -39,6 +39,7 @@ class TranslationService:
         # Progress tracking
         self.length = 0
         self.count = 0
+        self.is_print_progress = True
 
         # Temp storage fields for processing PDFs
         self.original_pdf_data = None
@@ -541,6 +542,7 @@ class TranslationService:
         try:
             processed_system_prompt = self.text_pre_processing(system_prompt)
             processed_user_prompt = self.text_pre_processing(user_prompt)
+            api_params = get_api_params(self.provider, self.api_key)
 
             response = completion(
                 model=f"{convert_model(self.provider, self.model_name)}",
@@ -548,7 +550,7 @@ class TranslationService:
                     {"role": "system", "content": processed_system_prompt},
                     {"role": "user", "content": processed_user_prompt},
                 ],
-                api_key=self.api_key,
+                **api_params,
             )
 
             self.count += 1
@@ -564,7 +566,6 @@ class TranslationService:
     async def translate_str_data_with_llm(
         self,
         text: str,
-        print_progress: bool = True,
         return_first_translation: bool = True,
     ) -> dict:
         if self.target_lang.lower() not in ("ja"):
@@ -586,7 +587,7 @@ class TranslationService:
                 {original_text}
                 """.format(original_text=self.text_pre_processing(text))
                 ),
-                print_progress,
+                self.is_print_progress,
             )
 
             # Disabling self-refinement for now, as it is a time-consuming process and
@@ -616,7 +617,7 @@ class TranslationService:
                     * Why: <reason>
                 """.format(original_text=text, translated_text=initial_translation)
                 ),
-                print_progress,
+                self.is_print_progress,
             )
 
             final_translation = await self.chat_with_llm(
@@ -636,7 +637,7 @@ class TranslationService:
                         review_comments=review_comment,
                     )
                 ),
-                print_progress,
+                self.is_print_progress,
             )
 
         except Exception as e:
@@ -765,6 +766,7 @@ class TranslationService:
 
             # 翻訳実施
             translate_text_blocks = await self.translate_blocks(preprocess_text_blocks)
+            self.count = 0
             translate_fig_blocks = await self.translate_blocks(preprocess_fig_blocks)
             logger.info("3. translated blocks")
 

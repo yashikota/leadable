@@ -138,6 +138,8 @@ async def translate_endpoint(
         # Prepare task data for the queue
         task_data = {
             "task_id": task_id,
+            "status": TaskStatus.PENDING.value,
+            "created_at": datetime.now().isoformat(),
             "filename": filename,
             "content_type": file.content_type,
             "original_url": get_file_url(f"uploads/{filename}"),
@@ -214,7 +216,6 @@ async def task_updates_sse(request: Request):
                             update_data = {
                                 "task_id": task_id,
                                 "status": current_status,
-                                "timestamp": datetime.now().isoformat(),
                             }
 
                             yield f"event: update\ndata: {json.dumps(update_data)}\n\n"
