@@ -9,6 +9,7 @@ from datetime import datetime, timedelta
 
 import httpx
 from bs4 import BeautifulSoup
+
 from mcp.server.fastmcp import Context, FastMCP
 
 

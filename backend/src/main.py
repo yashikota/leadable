@@ -9,7 +9,6 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from nanoid import generate
 
-from service.resource import SystemMonitor
 from service.db import (
     TaskStatus,
     delete_task,
@@ -29,6 +28,7 @@ from service.health import (
 from service.llm import check_valid_model, get_models
 from service.log import logger
 from service.mq import initialize_mq, publish_task
+from service.resource import SystemMonitor
 from service.storage import get_file_url, initialize_storage, upload_file
 
 tags_metadata = [
@@ -107,9 +107,8 @@ async def translate_endpoint(
         if provider and model:
             if provider != "ollama" and not api_key:
                 return create_response(
-                    content={"status": "error"},
-                    status_code=400,
-                    error_message=f"{provider}の使用にはAPIキーが必要です",
+                    400,
+                    f"{provider}の使用にはAPIキーが必要です",
                 )
 
             # Check if the model is valid with the provided API key
@@ -117,9 +116,8 @@ async def translate_endpoint(
                 is_valid_model = await check_valid_model(provider, model, api_key)
                 if not is_valid_model:
                     return create_response(
-                        content={"status": "error"},
-                        status_code=404,
-                        error_message="モデルが見つかりません。別のモデルを選択してください",
+                        404,
+                        "モデルが見つかりません。別のモデルを選択してください",
                     )
 
         # Upload the file to storage
@@ -128,9 +126,8 @@ async def translate_endpoint(
         )
         if not is_upload_success:
             return create_response(
-                content={"status": "error"},
-                status_code=400,
-                error_message="ファイルのアップロードに失敗しました",
+                400,
+                "ファイルのアップロードに失敗しました",
             )
         logger.info(f"File uploaded successfully: {filename}")
 
@@ -154,9 +151,8 @@ async def translate_endpoint(
         is_store_result = await store_result(task_data)
         if not is_store_result:
             return create_response(
-                content={"status": "error"},
-                status_code=400,
-                error_message="タスクの保存に失敗しました",
+                400,
+                "タスクの保存に失敗しました",
             )
 
         # Publish the task to the RabbitMQ queue
@@ -164,20 +160,18 @@ async def translate_endpoint(
         if not is_publish_success:
             await update_task_status(task_id, TaskStatus.FAILED.value)
             return create_response(
-                content={"status": "error"},
-                status_code=500,
-                error_message="タスクのキューへの追加に失敗しました",
+                500,
+                "タスクのキューへの追加に失敗しました",
             )
 
         logger.info(f"Translation task queued successfully: {task_id}")
 
-        return create_response(content={"status": "success", "task_id": task_id})
+        return create_response()
     except Exception as e:
         logger.error(f"Translation request error: {str(e)}")
         return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message="タスクのキューへの追加に失敗しました",
+            400,
+            "タスクのキューへの追加に失敗しました",
         )
 
 
@@ -255,11 +249,7 @@ async def get_tasks_endpoint():
         return await get_all_tasks()
     except Exception as e:
         logger.error(f"Translation history error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.get("/task/{task_id}", tags=["api"])
@@ -268,11 +258,7 @@ async def get_task_endpoint(task_id: str):
         return await get_task(task_id)
     except Exception as e:
         logger.error(f"Translation history error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.delete("/task/{task_id}", tags=["api"])
@@ -281,11 +267,7 @@ async def delete_task_endpoint(task_id: str):
         return await delete_task(task_id)
     except Exception as e:
         logger.error(f"Translation history error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.get("/models", tags=["api"])
@@ -294,11 +276,7 @@ async def get_models_endpoint():
         return await get_models()
     except Exception as e:
         logger.error(f"Model list error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 # ==================== HEALTH CHECK ENDPOINTS ====================
@@ -308,11 +286,7 @@ async def health_backend():
         return await health_check_backend()
     except Exception as e:
         logger.error(f"Backend health check error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.get("/health/ollama", tags=["status"])
@@ -321,11 +295,7 @@ async def health_ollama():
         return await health_check_ollama()
     except Exception as e:
         logger.error(f"Ollama health check error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.get("/health/db", tags=["status"])
@@ -334,11 +304,7 @@ async def health_db():
         return await health_check_db()
     except Exception as e:
         logger.error(f"DB health check error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.get("/health/mq", tags=["status"])
@@ -347,11 +313,7 @@ async def health_mq():
         return await health_check_mq()
     except Exception as e:
         logger.error(f"MQ health check error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
 
 
 @app.get("/health/storage", tags=["status"])
@@ -360,11 +322,8 @@ async def health_storage():
         return await health_check_storage()
     except Exception as e:
         logger.error(f"Storage health check error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
-        )
+        return create_response(400, str(e))
+
 
 @app.get("/resource", tags=["status"])
 async def resource_endpoint():
@@ -373,29 +332,16 @@ async def resource_endpoint():
         return system_monitor.get_system_info()
     except Exception as e:
         logger.error(f"Resource check error: {str(e)}")
-        return create_response(
-            content={"status": "error", "message": str(e)},
-            status_code=400,
-            error_message=str(e),
+        return create_response(400, str(e))
+
+
+def create_response(
+    status_code: int = 200,
+    error_message: str = None,
+) -> JSONResponse:
+    if status_code != 200:
+        return JSONResponse(
+            status_code,
+            content={"message": error_message},
         )
-
-
-def create_response(content, status_code=200, error_message=None):
-    if error_message and status_code != 200:
-        if isinstance(content, dict):
-            content["error_message"] = error_message
-
-    response = JSONResponse(
-        content=content,
-        status_code=status_code,
-    )
-
-    if error_message and status_code != 200:
-        try:
-            ascii_error = error_message.encode("ascii", errors="ignore").decode("ascii")
-            if ascii_error:
-                response.headers["X-LEADABLE-ERROR-MESSAGE"] = ascii_error
-        except Exception as e:
-            logger.error(f"Failed to set error header: {str(e)}")
-
-    return response
+    return JSONResponse(status_code)
