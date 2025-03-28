@@ -42,22 +42,19 @@ async def lifespan(app: FastAPI):
     try:
         logger.info("Initializing database...")
         db_init_result = initialize_database()
-        if db_init_result.get("status") == "error":
-            logger.error(
-                f"Database initialization failed: {db_init_result.get('message')}"
-            )
+        if db_init_result:
+            logger.info(f"Database initialization successful")
         else:
-            logger.info(f"Database initialization result: {db_init_result}")
+            logger.error("Database initialization failed")
 
-        # try:
-        #     logger.info("Initializing translation service...")
-        #     mq_init_result = await initialize_translation_service(custom_translate_function)
-        #     logger.info(f"Translation service initialization result: {mq_init_result}")
-        # except Exception as e:
-        #     logger.error(f"Translation service initialization failed: {str(e)}")
-        #     logger.warning("Application will continue without translation service")
+        logger.info("Initializing mq...")
+        mq_init_result = await initialize_mq()
+        if mq_init_result:
+            logger.info("MQ initialization successful")
+        else:
+            logger.error("MQ initialization failed")
 
-        logger.info("Initialization storage...")
+        logger.info("Initializing storage...")
         storage_init_result = initialize_storage()
         if storage_init_result:
             logger.info("Storage initialization successful")
@@ -136,6 +133,7 @@ async def translate_endpoint(
         ts = TranslationService()
         ts.task_id = task_id
         ts.status = TaskStatus.PENDING
+        ts.original_pdf_data = data
         ts.filename = filename
         ts.content_type = file.content_type
         ts.timestamp = datetime.now().isoformat()

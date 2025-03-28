@@ -17,8 +17,6 @@ TRANSLATION_QUEUE = "translation_requests"
 
 
 class TaskStatus(Enum):
-    """Enum for task status values"""
-
     PENDING = "pending"
     PROCESSING = "processing"
     COMPLETED = "completed"
@@ -26,9 +24,6 @@ class TaskStatus(Enum):
 
 
 def get_rabbitmq_connection_params() -> pika.ConnectionParameters:
-    """
-    Get RabbitMQ connection parameters.
-    """
     credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
     return pika.ConnectionParameters(
         host=RABBITMQ_HOST,
@@ -42,16 +37,10 @@ def get_rabbitmq_connection_params() -> pika.ConnectionParameters:
 
 
 def get_rabbitmq_client():
-    """
-    Get a blocking connection to RabbitMQ.
-    """
     return pika.BlockingConnection(get_rabbitmq_connection_params())
 
 
 async def get_async_rabbitmq_connection():
-    """
-    Get an asynchronous connection to RabbitMQ.
-    """
     future = asyncio.Future()
 
     def on_open(connection):
@@ -73,9 +62,6 @@ async def get_async_rabbitmq_connection():
 
 
 def ensure_queue_exists(channel, queue_name: str) -> None:
-    """
-    Ensure that the specified queue exists, creating it if necessary.
-    """
     channel.queue_declare(queue=queue_name, durable=True)
 
 

@@ -312,7 +312,7 @@ function App() {
     switch (status) {
       case "pending":
         return "待機中";
-      case "in_progress":
+      case "processing":
         return "処理中";
       case "completed":
         return "完了";
@@ -328,7 +328,7 @@ function App() {
     switch (status) {
       case "pending":
         return "badge-warning";
-      case "in_progress":
+      case "processing":
         return "badge-info";
       case "completed":
         return "badge-success";

@@ -41,6 +41,8 @@ class TranslationService:
         self.count = 0
 
         # Temp storage fields for processing PDFs
+        self.original_pdf_data = None
+        self.translated_pdf_data = None
         self.block_info = None
         self.text_blocks = None
         self.fig_blocks = None
@@ -70,7 +72,7 @@ class TranslationService:
             doc = nlp(text)
             tokens = [
                 token.text for token in doc if token.is_alpha
-            ]  # トークンがアルファベットで構成されている可動はも判定
+            ]  # トークンがアルファベットで構成されているかどうかも判定
             return tokens
         else:
             return []
@@ -309,14 +311,14 @@ class TranslationService:
         output_data = output_buffer.getvalue()
         return output_data
 
-    async def preprocess_write_blocks(self, block_info, to_lang="ja"):
+    async def preprocess_write_blocks(self, block_info):
         lh_calc_factor = 1.3
 
         # フォント選択
-        if to_lang == "en":
+        if self.target_lang == "en":
             font_path = "fonts/TIMES.TTF"
             a_text = "a"
-        elif to_lang == "ja":
+        elif self.target_lang == "ja":
             font_path = "fonts/MSMINCHO.TTC"
             a_text = "あ"
 
@@ -414,7 +416,6 @@ class TranslationService:
         self,
         input_pdf_data,
         block_info,
-        to_lang="en",
         text_color=[0, 0, 0],
         font_path=None,
     ):
@@ -424,9 +425,9 @@ class TranslationService:
         lh_factor = 1.5  # 行の高さの係数
 
         # フォント選択
-        if to_lang == "en" and font_path is None:
+        if self.target_lang == "en" and font_path is None:
             font_path = "fonts/TIMES.TTF"
-        elif to_lang == "ja":
+        elif self.target_lang == "ja":
             font_path = "fonts/MSMINCHO.TTC"
 
         doc = await asyncio.to_thread(fitz.open, stream=input_pdf_data, filetype="pdf")
@@ -735,16 +736,16 @@ class TranslationService:
             results.append(page_results)
         return results
 
-    async def pdf_translate(self, pdf_data: bytes):
+    async def pdf_translate(self):
         try:
-            self.block_info = await self.extract_text_coordinates_dict(pdf_data)
+            self.block_info = await self.extract_text_coordinates_dict(self.original_pdf_data)
             self.text_blocks, self.fig_blocks, _ = await self.remove_blocks(
                 self.block_info, 10, lang=self.source_lang
             )
 
             # 翻訳部分を消去したPDFデータを制作
             removed_textbox_pdf_data = await self.remove_textbox_for_pdf(
-                pdf_data, self.text_blocks
+                self.original_pdf_data, self.text_blocks
             )
             removed_textbox_pdf_data = await self.remove_textbox_for_pdf(
                 removed_textbox_pdf_data, self.fig_blocks
@@ -767,11 +768,9 @@ class TranslationService:
 
             # pdf書き込みデータ作成
             write_text_blocks = await self.preprocess_write_blocks(
-                translate_text_blocks, self.target_lang
+                translate_text_blocks
             )
-            write_fig_blocks = await self.preprocess_write_blocks(
-                translate_fig_blocks, self.target_lang
-            )
+            write_fig_blocks = await self.preprocess_write_blocks(translate_fig_blocks)
             logger.info("4. Generate wirte Blocks")
 
             # pdfの作成
@@ -780,7 +779,7 @@ class TranslationService:
                 logger.info("write text to pdf.")
                 logger.info(len(write_text_blocks))
                 translated_pdf_data = await self.write_pdf_text(
-                    removed_textbox_pdf_data, write_text_blocks, self.target_lang
+                    removed_textbox_pdf_data, write_text_blocks
                 )
             else:
                 logger.info("write text to pdf is empty.")
@@ -789,7 +788,7 @@ class TranslationService:
             if write_fig_blocks != []:
                 logger.info("write fig to pdf.")
                 translated_pdf_data = await self.write_pdf_text(
-                    translated_pdf_data, write_fig_blocks, self.target_lang
+                    translated_pdf_data, write_fig_blocks
                 )
             else:
                 logger.info("write fig to pdf is empty.")
@@ -797,7 +796,7 @@ class TranslationService:
 
             # 見開き結合の実施
             merged_pdf_data = await self.create_viewing_pdf(
-                pdf_data, translated_pdf_data
+                self.original_pdf_data, translated_pdf_data
             )
             logger.info("5. Generate PDF Data")
 

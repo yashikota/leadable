@@ -23,9 +23,6 @@ class TaskStatus(str, Enum):
 
 
 def get_mongo_client():
-    """
-    Initialize and return a MongoDB client.
-    """
     try:
         connection_string = (
             f"mongodb://{MONGO_USERNAME}:{MONGO_PASSWORD}@{MONGO_HOST}:{MONGO_PORT}/"
@@ -50,6 +47,25 @@ def get_database(database_name=MONGO_DB):
 def get_collection(collection_name, database_name=MONGO_DB):
     db = get_database(database_name)
     return db[collection_name]
+
+
+async def update_task_status(task_id: str, status: str):
+    try:
+        tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
+        result = tasks_collection.update_one(
+            {"task_id": task_id},
+            {"$set": {"status": status}}
+        )
+
+        if result.matched_count == 0:
+            logger.warning(f"Task {task_id} not found when updating status to {status}")
+            return False
+
+        logger.info(f"Updated task {task_id} status to {status}")
+        return True
+    except Exception as e:
+        logger.error(f"Error updating task status for {task_id}: {str(e)}")
+        return False
 
 
 async def store_result(ts) -> bool:
@@ -130,7 +146,7 @@ def create_indexes():
         logger.error(f"Unexpected error creating indexes: {str(e)}")
 
 
-def initialize_database():
+def initialize_database() -> bool:
     try:
         db = get_database()
 
@@ -145,7 +161,7 @@ def initialize_database():
         client = get_mongo_client()
         client.admin.command("ping")
         logger.info("Database connection successful.")
-
-        return {"status": "initialized", "message": "Database initialized successfully"}
+        return True
     except Exception as e:
         logger.error(f"Database initialization error: {str(e)}")
+        return False
