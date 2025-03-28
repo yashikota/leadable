@@ -13,52 +13,59 @@ import spacy
 from litellm import completion
 from tenacity import retry, stop_after_attempt, wait_fixed
 
+from service.db import TaskStatus
 from service.llm import convert_model
 from service.log import logger
 
 
 class TranslationService:
+    supported_languages = {"en": "en_core_web_sm", "ja": "ja_core_news_sm"}
+    loaded_models = {}
+
     def __init__(self):
+        self.task_id = ""
+        self.status = TaskStatus.PENDING
+        self.filename = ""
+        self.content_type = ""
+        self.timestamp = ""
+        self.original_url = ""
+        self.translated_url = ""
         self.source_lang = ""
         self.target_lang = ""
         self.provider = ""
         self.model_name = ""
         self.api_key = ""
 
+        # Progress tracking
         self.length = 0
         self.count = 0
 
-    # Class constants
-    SPACY_CONFIG = {
-        "supported_languages": {"en": "en_core_web_sm", "ja": "ja_core_news_sm"}
-    }
+        # Temp storage fields for processing PDFs
+        self.block_info = None
+        self.text_blocks = None
+        self.fig_blocks = None
+        self.excluded_blocks = None
 
-    # Static class variables
-    supported_languages = SPACY_CONFIG["supported_languages"]
-    loaded_models = {}
-
-    @staticmethod
-    def load_model(lang_code):
+    def load_model(self, lang_code):
         """指定された言語コードのモデルをロードする"""
-        if lang_code in TranslationService.loaded_models:
-            return TranslationService.loaded_models[lang_code]
-        if lang_code in TranslationService.supported_languages:
-            model_name = TranslationService.supported_languages[lang_code]
+        if lang_code in self.loaded_models:
+            return self.loaded_models[lang_code]
+        if lang_code in self.supported_languages:
+            model_name = self.supported_languages[lang_code]
             try:
                 nlp = spacy.load(model_name)
-                TranslationService.loaded_models[lang_code] = nlp
+                self.loaded_models[lang_code] = nlp
                 return nlp
             except OSError as e:
-                print(f"Model for '{lang_code}' could not be loaded: {e}")
+                logger.error(f"Model for '{lang_code}' could not be loaded: {e}")
                 return None
         else:
-            print(f"No model available for language code: '{lang_code}'")
+            logger.info(f"No model available for language code: '{lang_code}'")
             return None
 
-    @staticmethod
-    def tokenize_text(lang_code, text):
+    def tokenize_text(self, lang_code, text):
         """指定された言語のテキストをトークン化し、トークンのリストを返す"""
-        nlp = TranslationService.load_model(lang_code)
+        nlp = self.load_model(lang_code)
         if nlp:
             doc = nlp(text)
             tokens = [
@@ -68,8 +75,7 @@ class TranslationService:
         else:
             return []
 
-    @staticmethod
-    async def extract_text_coordinates_dict(pdf_data):
+    async def extract_text_coordinates_dict(self, pdf_data):
         """
         pdfバイトデータのテキストファイル座標を取得します。
         """
@@ -111,38 +117,32 @@ class TranslationService:
         await asyncio.to_thread(document.close)
         return content
 
-    @staticmethod
-    def check_first_num_tokens(input_list, keywords, num=2):
+    def check_first_num_tokens(self, input_list, keywords, num=2):
         for item in input_list[:num]:
             for keyword in keywords:
                 if keyword.lower() in item.lower():
                     return True
         return False
 
-    @staticmethod
-    def remove_special_chars(text):
+    def remove_special_chars(self, text):
         return "".join(
             char
             for char in text
             if char not in string.punctuation and char not in string.digits
         )
 
-    @staticmethod
-    def calculate_token_scores(text_list, lang, token_threshold) -> list:
+    def calculate_token_scores(self, text_list, lang, token_threshold) -> list:
         """
         テキストのリストに対してトークン数を計算し、
         トークン数が指定されたしきい値以下の場合は0、そうでない以外の場合は1を返します。
         """
-        tokens_list = [
-            TranslationService.tokenize_text(lang, text) for text in text_list
-        ]
+        tokens_list = [self.tokenize_text(lang, text) for text in text_list]
         token_counts = [len(tokens) for tokens in tokens_list]
         return [
             0 if count <= token_threshold else 1 for count in token_counts
         ], token_counts
 
-    @staticmethod
-    def calculate_percentile_scores(data) -> list:
+    def calculate_percentile_scores(self, data) -> list:
         """
         データのパーセンタイルスコアを計算し、中央値を基準に標準化します。
         """
@@ -153,15 +153,13 @@ class TranslationService:
         res = [abs((value - item_median) / iqr) if iqr != 0 else 0 for value in data]
         return res
 
-    @staticmethod
-    def calculate_marge_scores(scores):
+    def calculate_marge_scores(self, scores):
         """
         トークン数、幅、サイズのスコアをマージし、合計スコアを返します。
         """
         return [sum(score_list) for score_list in scores]
 
-    @staticmethod
-    def calculate_histogram_bins(marge_scores, n_neighbours=0) -> tuple:
+    def calculate_histogram_bins(self, marge_scores, n_neighbours=0) -> tuple:
         """
         マージスコアのヒストグラムを計算し、
         最頻ビンからn_neighboursビンに相当する範囲を返します。
@@ -182,22 +180,21 @@ class TranslationService:
         num_bins = min(num_bins_sturges, num_bins_fd)
         histogram, bin_edges = np.histogram(marge_scores, bins=num_bins)
 
-        print("[Histogram]")
-        print(f"{num_bins=}")
-        print(f"{histogram=}")
-        print(f"{bin_edges=}")
+        logger.info("[Histogram]")
+        logger.info(f"{num_bins=}")
+        logger.info(f"{histogram=}")
+        logger.info(f"{bin_edges=}")
 
         frequent_bins = np.argsort(histogram)[::-1][: n_neighbours + 1]
         res = []
         for b in frequent_bins:
-            print(f"{b=}, {histogram[b]=}")
+            logger.info(f"{b=}, {histogram[b]=}")
             res.append((bin_edges[b], bin_edges[b + 1]))
 
-        print(f"{res=}")
+        logger.info(f"{res=}")
         return res
 
-    @staticmethod
-    async def remove_blocks(block_info, token_threshold=15, lang="en") -> list:
+    async def remove_blocks(self, block_info, token_threshold=15, lang="en") -> list:
         """
         トークン数が指定された閾値以下のブロックをリストから削除し、
         幅300以上のパーセンタイルブロックをリストから消去します。
@@ -212,16 +209,16 @@ class TranslationService:
         widths = [x1 - x0 for x0, _, x1, _ in bboxs]
         sizes = [item["size"] for sublist in block_info for item in sublist]
         text_list = [
-            TranslationService.remove_special_chars(item["text"].replace("\n", ""))
+            self.remove_special_chars(item["text"].replace("\n", ""))
             for sublist in block_info
             for item in sublist
         ]
 
-        token_scores, token_counts = TranslationService.calculate_token_scores(
+        token_scores, token_counts = self.calculate_token_scores(
             text_list, lang, token_threshold
         )
-        width_scores = TranslationService.calculate_percentile_scores(widths)
-        size_scores = TranslationService.calculate_percentile_scores(sizes)
+        width_scores = self.calculate_percentile_scores(widths)
+        size_scores = self.calculate_percentile_scores(sizes)
 
         scores = [[token_score] for token_score in token_scores]
         for width_score, size_score, score_list in zip(
@@ -230,9 +227,9 @@ class TranslationService:
             score_list.append(width_score)
             score_list.append(size_score)
 
-        marge_scores = TranslationService.calculate_marge_scores(scores)
+        marge_scores = self.calculate_marge_scores(scores)
 
-        frequent_bins = TranslationService.calculate_histogram_bins(
+        frequent_bins = self.calculate_histogram_bins(
             marge_scores, n_neighbours=1
         )  # 頻度1位,2位のビンの範囲を取得
         first_bin, second_bin = frequent_bins
@@ -244,7 +241,7 @@ class TranslationService:
             page_excluded_blocks = []
 
             for block in pages:
-                tokens_list = TranslationService.tokenize_text(lang, block["text"])
+                tokens_list = self.tokenize_text(lang, block["text"])
                 score = marge_scores[i]
                 _simple_word_cnt = len(block["text"].split(" "))
 
@@ -263,7 +260,7 @@ class TranslationService:
                 )
                 is_valid_block = (rule1 and rule2) or rule3
 
-                if TranslationService.check_first_num_tokens(
+                if self.check_first_num_tokens(
                     tokens_list, ["表", "グラフ"] if lang == "ja" else ["fig", "table"]
                 ):
                     page_fig_table_blocks.append(block)
@@ -287,8 +284,7 @@ class TranslationService:
 
         return text_blocks, fig_blocks, excluded_blocks
 
-    @staticmethod
-    async def remove_textbox_for_pdf(pdf_data, remove_list):
+    async def remove_textbox_for_pdf(self, pdf_data, remove_list):
         """
         読み込んだPDFより、すべてのテキストデータを消去します。
         leave_text_listが設定されている場合、該当リストに含まれる文字列(部分一致)は保持します。
@@ -313,8 +309,7 @@ class TranslationService:
         output_data = output_buffer.getvalue()
         return output_data
 
-    @staticmethod
-    async def preprocess_write_blocks(block_info, to_lang="ja"):
+    async def preprocess_write_blocks(self, block_info, to_lang="ja"):
         lh_calc_factor = 1.3
 
         # フォント選択
@@ -415,9 +410,13 @@ class TranslationService:
         grouped_pages = list(page_groups.values())
         return grouped_pages
 
-    @staticmethod
     async def write_pdf_text(
-        input_pdf_data, block_info, to_lang="en", text_color=[0, 0, 0], font_path=None
+        self,
+        input_pdf_data,
+        block_info,
+        to_lang="en",
+        text_color=[0, 0, 0],
+        font_path=None,
     ):
         """
         指定されたフォントで、文字を作画します。
@@ -467,8 +466,7 @@ class TranslationService:
 
         return output_data
 
-    @staticmethod
-    async def create_viewing_pdf(base_pdf_path, translated_pdf_path):
+    async def create_viewing_pdf(self, base_pdf_path, translated_pdf_path):
         # PDFドキュメントを開く
         doc_base = await asyncio.to_thread(
             fitz.open, stream=base_pdf_path, filetype="pdf"
@@ -516,8 +514,7 @@ class TranslationService:
         output_data = output_buffer.getvalue()
         return output_data
 
-    @staticmethod
-    def text_pre_processing(text: str) -> str:
+    def text_pre_processing(self, text: str) -> str:
         """
         Preprocess the input text by removing extra newlines and dedenting.
 
@@ -534,69 +531,61 @@ class TranslationService:
         _tmp = dedent(_tmp)
         return _tmp
 
-    @staticmethod
     async def chat_with_llm(
+        self,
         system_prompt: str,
         user_prompt: str,
-        print_result: bool,
-        provider: str,
-        model: str,
-        api_key: str = "",
+        print_result: bool = False,
     ) -> str:
         try:
-            processed_system_prompt = TranslationService.text_pre_processing(
-                system_prompt
-            )
-            processed_user_prompt = TranslationService.text_pre_processing(user_prompt)
+            processed_system_prompt = self.text_pre_processing(system_prompt)
+            processed_user_prompt = self.text_pre_processing(user_prompt)
 
             response = completion(
-                model=f"{convert_model(provider, model)}",
+                model=f"{convert_model(self.provider, self.model_name)}",
                 messages=[
                     {"role": "system", "content": processed_system_prompt},
                     {"role": "user", "content": processed_user_prompt},
                 ],
-                api_key=api_key,
+                api_key=self.api_key,
             )
+
+            self.count += 1
+            logger.info(f"Progress: {self.count}/{self.length}")
+
             if print_result:
-                logger.info("User: \n", processed_user_prompt)
-                logger.info("LLM: \n", response.choices[0].message.content)
+                logger.info(processed_user_prompt)
+                logger.info(response.choices[0].message.content)
             return response.choices[0].message.content
         except Exception as e:
             return f"llm chat failed: {str(e)}"
 
-    @staticmethod
     async def translate_str_data_with_llm(
+        self,
         text: str,
-        target_lang: str,
-        provider: str,
-        model: str,
-        api_key: str,
         print_progress: bool = True,
         return_first_translation: bool = True,
-    ) -> str:
-        if target_lang.lower() not in ("ja"):
+    ) -> dict:
+        if self.target_lang.lower() not in ("ja"):
             return {
                 "ok": False,
-                "message": "llm only supports Japanese translation.",
+                "message": "llm only supports Japanese translation",
             }
 
         system_prompt = "You are a world-class translator and will translate English text to Japanese."
         try:
-            initial_translation = await TranslationService.chat_with_llm(
+            initial_translation = await self.chat_with_llm(
                 system_prompt,
-                TranslationService.text_pre_processing(
+                self.text_pre_processing(
                     """
                 This is a English to Japanese, Literal Translation task.
                 Please provide the Japanese translation for the next sentences.
                 You must not include any chat messages to the user in your response.
                 ---
                 {original_text}
-                """.format(original_text=TranslationService.text_pre_processing(text))
+                """.format(original_text=self.text_pre_processing(text))
                 ),
                 print_progress,
-                provider,
-                model,
-                api_key,
             )
 
             # Disabling self-refinement for now, as it is a time-consuming process and
@@ -607,9 +596,9 @@ class TranslationService:
                     "data": initial_translation,
                 }
 
-            review_comment = await TranslationService.chat_with_llm(
+            review_comment = await self.chat_with_llm(
                 system_prompt,
-                TranslationService.text_pre_processing(
+                self.text_pre_processing(
                     """
                 Orginal Text(English):
                 {original_text}
@@ -627,14 +616,11 @@ class TranslationService:
                 """.format(original_text=text, translated_text=initial_translation)
                 ),
                 print_progress,
-                provider,
-                model,
-                api_key,
             )
 
-            final_translation = await TranslationService.chat_with_llm(
+            final_translation = await self.chat_with_llm(
                 system_prompt,
-                TranslationService.text_pre_processing(
+                self.text_pre_processing(
                     """
                 Orginal Text:
                 {original_text}
@@ -650,9 +636,6 @@ class TranslationService:
                     )
                 ),
                 print_progress,
-                provider,
-                model,
-                api_key,
             )
 
         except Exception as e:
@@ -663,10 +646,7 @@ class TranslationService:
             "data": final_translation,
         }
 
-    @staticmethod
-    async def translate_blocks(
-        blocks: str, target_lang: str, provider: str, model: str, api_key: str
-    ):
+    async def translate_blocks(self, blocks: str):
         @retry(wait=wait_fixed(2), stop=stop_after_attempt(4))
         async def translate_block(block) -> dict:
             """
@@ -677,9 +657,7 @@ class TranslationService:
             if text.strip() == "":
                 return block
 
-            translated_text = await TranslationService.translate_str_data_with_llm(
-                text, target_lang, provider, model, api_key
-            )
+            translated_text = await self.translate_str_data_with_llm(text)
             if translated_text["ok"]:
                 block["text"] = translated_text["data"]
                 return block
@@ -693,6 +671,7 @@ class TranslationService:
                     for page_idx, block in enumerate(page):
                         task = tg.create_task(translate_block(block))
                         tasks.append(((block_idx, page_idx), task))
+                self.length = len(tasks)
                 logger.info(f"generated {len(tasks)} tasks")
                 logger.info("waiting for complete...")
         except Exception as e:
@@ -706,9 +685,8 @@ class TranslationService:
 
         return blocks
 
-    @staticmethod
     async def preprocess_translation_blocks(
-        blocks, end_maker=(".", ":", ";"), end_maker_enable=True
+        self, blocks, end_maker=(".", ":", ";"), end_maker_enable=True
     ):
         """
         blockの文字列について、end makerがない場合、一括で翻訳できるように変換します。
@@ -757,98 +735,76 @@ class TranslationService:
             results.append(page_results)
         return results
 
-    @staticmethod
-    async def pdf_translate(
-        pdf_data: bytes,
-        provider: str,
-        model: str,
-        api_key: str,
-        source_lang: str,
-        to_lang: str,
-    ):
+    async def pdf_translate(self, pdf_data: bytes):
         try:
-            block_info = await TranslationService.extract_text_coordinates_dict(
-                pdf_data
-            )
-            text_blocks, fig_blocks, _ = await TranslationService.remove_blocks(
-                block_info, 10, lang=source_lang
+            self.block_info = await self.extract_text_coordinates_dict(pdf_data)
+            self.text_blocks, self.fig_blocks, _ = await self.remove_blocks(
+                self.block_info, 10, lang=self.source_lang
             )
 
             # 翻訳部分を消去したPDFデータを制作
-            removed_textbox_pdf_data = await TranslationService.remove_textbox_for_pdf(
-                pdf_data, text_blocks
+            removed_textbox_pdf_data = await self.remove_textbox_for_pdf(
+                pdf_data, self.text_blocks
             )
-            removed_textbox_pdf_data = await TranslationService.remove_textbox_for_pdf(
-                removed_textbox_pdf_data, fig_blocks
+            removed_textbox_pdf_data = await self.remove_textbox_for_pdf(
+                removed_textbox_pdf_data, self.fig_blocks
             )
             logger.info("1. Generate removed_textbox_pdf_data")
 
             # 翻訳前のブロック準備
-            preprocess_text_blocks = (
-                await TranslationService.preprocess_translation_blocks(
-                    text_blocks, (".", ":", ";"), True
-                )
+            preprocess_text_blocks = await self.preprocess_translation_blocks(
+                self.text_blocks, (".", ":", ";"), True
             )
-            preprocess_fig_blocks = (
-                await TranslationService.preprocess_translation_blocks(
-                    fig_blocks, (".", ":", ";"), False
-                )
+            preprocess_fig_blocks = await self.preprocess_translation_blocks(
+                self.fig_blocks, (".", ":", ";"), False
             )
             logger.info("2. Generate Prepress_blocks")
 
             # 翻訳実施
-            translate_text_blocks = await TranslationService.translate_blocks(
-                preprocess_text_blocks, to_lang, provider, model, api_key
-            )
-            translate_fig_blocks = await TranslationService.translate_blocks(
-                preprocess_fig_blocks, to_lang, provider, model, api_key
-            )
+            translate_text_blocks = await self.translate_blocks(preprocess_text_blocks)
+            translate_fig_blocks = await self.translate_blocks(preprocess_fig_blocks)
             logger.info("3. translated blocks")
 
             # pdf書き込みデータ作成
-            write_text_blocks = await TranslationService.preprocess_write_blocks(
-                translate_text_blocks, to_lang
+            write_text_blocks = await self.preprocess_write_blocks(
+                translate_text_blocks, self.target_lang
             )
-            write_fig_blocks = await TranslationService.preprocess_write_blocks(
-                translate_fig_blocks, to_lang
+            write_fig_blocks = await self.preprocess_write_blocks(
+                translate_fig_blocks, self.target_lang
             )
             logger.info("4. Generate wirte Blocks")
 
             # pdfの作成
             translated_pdf_data = None
             if write_text_blocks != []:
-                print("write text to pdf.")
-                print(len(write_text_blocks))
-                translated_pdf_data = await TranslationService.write_pdf_text(
-                    removed_textbox_pdf_data, write_text_blocks, to_lang
+                logger.info("write text to pdf.")
+                logger.info(len(write_text_blocks))
+                translated_pdf_data = await self.write_pdf_text(
+                    removed_textbox_pdf_data, write_text_blocks, self.target_lang
                 )
             else:
-                print("write text to pdf is empty.")
+                logger.info("write text to pdf is empty.")
                 breakpoint()
 
             if write_fig_blocks != []:
-                print("write fig to pdf.")
-                translated_pdf_data = await TranslationService.write_pdf_text(
-                    translated_pdf_data, write_fig_blocks, to_lang
+                logger.info("write fig to pdf.")
+                translated_pdf_data = await self.write_pdf_text(
+                    translated_pdf_data, write_fig_blocks, self.target_lang
                 )
             else:
-                print("write fig to pdf is empty.")
+                logger.info("write fig to pdf is empty.")
                 breakpoint()
 
             # 見開き結合の実施
-            merged_pdf_data = await TranslationService.create_viewing_pdf(
+            merged_pdf_data = await self.create_viewing_pdf(
                 pdf_data, translated_pdf_data
             )
             logger.info("5. Generate PDF Data")
 
+            # 処理完了
+            self.status = TaskStatus.COMPLETED
             return True, merged_pdf_data
         except Exception as e:
             logger.error(f"pdf_translate error: {str(e)}")
+            self.status = TaskStatus.FAILED
             return False, str(e)
-
-
-# Maintain backward compatibility for global function calls
-load_model = TranslationService.load_model
-tokenize_text = TranslationService.tokenize_text
-extract_text_coordinates_dict = TranslationService.extract_text_coordinates_dict
-check_first_num_tokens = TranslationService.check_first_num_tokens
