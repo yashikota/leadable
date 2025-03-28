@@ -9,6 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
 from nanoid import generate
 
+from service.resource import SystemMonitor
 from service.db import (
     TaskStatus,
     delete_task,
@@ -32,8 +33,6 @@ from service.storage import get_file_url, initialize_storage, upload_file
 
 tags_metadata = [
     {"name": "api"},
-    {"name": "db"},
-    {"name": "llm"},
     {"name": "status"},
 ]
 
@@ -250,7 +249,7 @@ async def task_updates_sse(request: Request):
     )
 
 
-@app.get("/tasks", tags=["db"])
+@app.get("/tasks", tags=["api"])
 async def get_tasks_endpoint():
     try:
         return await get_all_tasks()
@@ -263,7 +262,7 @@ async def get_tasks_endpoint():
         )
 
 
-@app.get("/task/{task_id}", tags=["db"])
+@app.get("/task/{task_id}", tags=["api"])
 async def get_task_endpoint(task_id: str):
     try:
         return await get_task(task_id)
@@ -276,7 +275,7 @@ async def get_task_endpoint(task_id: str):
         )
 
 
-@app.delete("/task/{task_id}", tags=["db"])
+@app.delete("/task/{task_id}", tags=["api"])
 async def delete_task_endpoint(task_id: str):
     try:
         return await delete_task(task_id)
@@ -289,7 +288,7 @@ async def delete_task_endpoint(task_id: str):
         )
 
 
-@app.get("/models", tags=["llm"])
+@app.get("/models", tags=["api"])
 async def get_models_endpoint():
     try:
         return await get_models()
@@ -361,6 +360,19 @@ async def health_storage():
         return await health_check_storage()
     except Exception as e:
         logger.error(f"Storage health check error: {str(e)}")
+        return create_response(
+            content={"status": "error", "message": str(e)},
+            status_code=400,
+            error_message=str(e),
+        )
+
+@app.get("/resource", tags=["status"])
+async def resource_endpoint():
+    try:
+        system_monitor = SystemMonitor()
+        return system_monitor.get_system_info()
+    except Exception as e:
+        logger.error(f"Resource check error: {str(e)}")
         return create_response(
             content={"status": "error", "message": str(e)},
             status_code=400,

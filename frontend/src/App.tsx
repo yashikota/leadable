@@ -7,7 +7,7 @@ import { Navbar } from "./components/Navbar";
 import type { AvailableModels, Task } from "./types/type";
 
 export const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
-const API_URL = `http://${ADDRESS}:8866`;
+export const API_URL = `http://${ADDRESS}:8866`;
 
 const providerNameMap: Record<string, string> = {
   ollama: "Ollama",
@@ -278,30 +278,6 @@ function App() {
     }
   };
 
-  const handleDeleteTask = (taskId: string) => {
-    fetch(`${API_URL}/task/${taskId}`, {
-      method: "DELETE",
-    })
-      .then((response) => {
-        // Check for error header
-        const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
-        if (errorMessage) {
-          console.error("Failed to delete translation task:", errorMessage);
-          throw new Error(errorMessage);
-        }
-
-        if (!response.ok) {
-          throw new Error("Failed to delete translation task");
-        }
-        setTranslationTasks((prev) =>
-          prev.filter((task) => task.task_id !== taskId),
-        );
-      })
-      .catch((err) => {
-        console.error("Failed to delete translation task:", err);
-      });
-  };
-
   const resetForm = () => {
     setFile(null);
     setError(null);
@@ -355,7 +331,7 @@ function App() {
         />
 
         {/* File List */}
-        <FileList tasks={translationTasks} onDeleteTask={handleDeleteTask} />
+        <FileList tasks={translationTasks} />
 
         {/* LLM Settings */}
         <LLMSettings

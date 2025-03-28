@@ -1,12 +1,12 @@
-import { SquareArrowOutUpRight, Trash2 } from "lucide-react";
+import { FileText, SquareArrowOutUpRight } from "lucide-react";
+import { Link } from "react-router";
 import type { Task } from "../types/type";
 
 type FileListProps = {
   tasks: Task[];
-  onDeleteTask: (taskId: string) => void;
 };
 
-export function FileList({ tasks, onDeleteTask }: FileListProps) {
+export function FileList({ tasks }: FileListProps) {
   // ステータスの日本語表示を取得
   const getStatusLabel = (status: string): string => {
     switch (status) {
@@ -53,7 +53,7 @@ export function FileList({ tasks, onDeleteTask }: FileListProps) {
               <th>ファイル名</th>
               <th>ステータス</th>
               <th>作成日時</th>
-              <th className="text-right">アクション</th>
+              <th className="text-right">PDFを開く</th>
             </tr>
           </thead>
           <tbody>
@@ -66,7 +66,15 @@ export function FileList({ tasks, onDeleteTask }: FileListProps) {
               )
               .map((task: Task) => (
                 <tr key={task.task_id} className="hover">
-                  <td className="max-w-xs truncate">{task.filename}</td>
+                  <td className="max-w-xs truncate">
+                    <Link
+                      to={`/task/${task.task_id}`}
+                      className="flex items-center hover:text-primary hover:underline"
+                    >
+                      {task.filename}
+                      <SquareArrowOutUpRight size={14} className="ml-1" />
+                    </Link>
+                  </td>
                   <td>
                     <span
                       className={`badge ${getStatusBadgeClass(task.status)}`}
@@ -85,7 +93,7 @@ export function FileList({ tasks, onDeleteTask }: FileListProps) {
                           rel="noopener noreferrer"
                           aria-label="開く"
                         >
-                          <SquareArrowOutUpRight size={18} />
+                          <FileText size={18} />
                         </a>
                       ) : (
                         <button
@@ -93,60 +101,9 @@ export function FileList({ tasks, onDeleteTask }: FileListProps) {
                           disabled
                           aria-label="準備中"
                         >
-                          <SquareArrowOutUpRight size={18} />
+                          <FileText size={18} />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="btn btn-sm join-item hover:bg-red-200 border-none"
-                        onClick={() => {
-                          (
-                            document.getElementById(
-                              `delete-modal-${task.task_id}`,
-                            ) as HTMLDialogElement
-                          ).showModal();
-                          setTimeout(() => {
-                            const modal = document.getElementById(
-                              `delete-modal-${task.task_id}`,
-                            ) as HTMLDialogElement;
-                            if (modal.open) {
-                              modal.showModal();
-                            }
-                          }, 0);
-                        }}
-                        aria-label="削除"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-
-                      {/* Delete confirmation modal */}
-                      <dialog
-                        id={`delete-modal-${task.task_id}`}
-                        className="modal modal-bottom sm:modal-middle"
-                      >
-                        <div className="modal-box">
-                          <p className="py-4 text-xl">
-                            「{task.filename}」を削除してもよろしいですか？
-                          </p>
-                          <div className="modal-action">
-                            <form method="dialog">
-                              <button className="btn mr-2">キャンセル</button>
-                            </form>
-                            <button
-                              type="button"
-                              className="btn btn-error"
-                              onClick={() => {
-                                onDeleteTask(task.task_id);
-                                document.getElementById(
-                                  `delete-modal-${task.task_id}`,
-                                );
-                              }}
-                            >
-                              削除する
-                            </button>
-                          </div>
-                        </div>
-                      </dialog>
                     </div>
                   </td>
                 </tr>
