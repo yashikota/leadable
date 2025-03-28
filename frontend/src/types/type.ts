@@ -5,28 +5,21 @@ enum TaskStatus {
   FAILED = "failed",
 }
 
-export interface Task {
-  _id: string;
+export type Task = {
   task_id: string;
+  filename: string;
   status: TaskStatus;
   created_at: string;
-  filename: string;
-  original_url: string;
-  translated_url: string;
-  source_lang: string;
-  target_lang: string;
-  provider: string;
-  model_name: string;
-  content_type: string;
-}
+  translated_url?: string;
+};
 
 // Define interface for react-select options
-export interface SelectOption {
+export type SelectOption = {
   value: string;
   label: string;
-}
+};
 
 // Define interface for available models from API
-export interface AvailableModels {
+export type AvailableModels = {
   [provider: string]: string[];
-}
+};

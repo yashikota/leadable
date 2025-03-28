@@ -1,36 +1,32 @@
 import {
-  type ChangeEvent,
-  type DragEvent,
-  type KeyboardEvent,
   useCallback,
   useEffect,
   useRef,
   useState,
 } from "react";
 import "./App.css";
-import {
-  Check,
-  CircleCheckBig,
-  CircleX,
-  FileUp,
-  GithubIcon,
-  Save,
-  Settings,
-  SquareArrowOutUpRight,
-  Trash2,
-} from "lucide-react";
-import type { AvailableModels, SelectOption, Task } from "./types/type";
+import type { AvailableModels, Task } from "./types/type";
+import { Navbar } from "./components/Navbar";
+import { FileUploader } from "./components/FileUploader";
+import { FileList } from "./components/FileList";
+import { LLMSettings } from "./components/LLMSettings";
 
-const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
+export const ADDRESS = import.meta.env.VITE_SERVER_ADDRESS;
 const API_URL = `http://${ADDRESS}:8866`;
+
+const providerNameMap: Record<string, string> = {
+  ollama: "Ollama",
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  google: "Gemini",
+  deepseek: "DeepSeek",
+};
 
 function App() {
   const [file, setFile] = useState<File | null>(null);
-  const [isDragging, setIsDragging] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [translationComplete, setTranslationComplete] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const [translationTasks, setTranslationTasks] = useState<Task[]>([]);
   const [selectedProvider, setSelectedProvider] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
@@ -212,52 +208,12 @@ function App() {
     [apiKeyTimer],
   );
 
-  const handleDragOver = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(true);
-  };
-
-  const handleDragLeave = () => {
-    setIsDragging(false);
-  };
-
-  const handleDrop = (e: DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
-    setIsDragging(false);
-
-    const files = e.dataTransfer.files;
-    if (files.length > 0) {
-      validateAndSetFile(files[0]);
-    }
-  };
-
-  const handleFileInputChange = (e: ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files.length > 0) {
-      validateAndSetFile(e.target.files[0]);
-    }
-  };
-
-  const validateAndSetFile = (file: File) => {
+  const handleFileSelected = (selectedFile: File | null) => {
+    setFile(selectedFile);
     setError(null);
 
-    if (file.type !== "application/pdf") {
+    if (!selectedFile) {
       setError("PDFファイルのみ対応しています");
-      setFile(null);
-      return;
-    }
-
-    setFile(file);
-  };
-
-  const handleClick = () => {
-    if (fileInputRef.current) {
-      fileInputRef.current.click();
-    }
-  };
-
-  const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
-    if (e.key === "Enter" || e.key === " ") {
-      handleClick();
     }
   };
 
@@ -327,21 +283,8 @@ function App() {
     }
   };
 
-  // const handleGetTask = async (taskId: string) => {
-  //   try {
-  //     const response = await fetch(`${API_URL}/task/${taskId}`);
-  //     if (!response.ok) {
-  //       throw new Error("Failed to fetch translation task");
-  //     }
-  //     const data = (await response.json()) as Task;
-  //     setTranslationTasks((prev) => [...prev, data]);
-  //   } catch (err) {
-  //     console.error("Failed to fetch translation task:", err);
-  //   }
-  // };
-
-  const handleDeleteTask = (task_id: string) => {
-    fetch(`${API_URL}/task/${task_id}`, {
+  const handleDeleteTask = (taskId: string) => {
+    fetch(`${API_URL}/task/${taskId}`, {
       method: "DELETE",
     })
       .then((response) => {
@@ -356,7 +299,7 @@ function App() {
           throw new Error("Failed to delete translation task");
         }
         setTranslationTasks((prev) =>
-          prev.filter((task) => task.task_id !== task_id),
+          prev.filter((task) => task.task_id !== taskId),
         );
       })
       .catch((err) => {
@@ -368,99 +311,28 @@ function App() {
     setFile(null);
     setError(null);
     setTranslationComplete(false);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
   };
 
-  // Convert available providers to react-select options
-  const getProviderOptions = (): SelectOption[] => {
-    return Object.keys(availableModels).map((providerId) => ({
-      value: providerId,
-      label: providerNameMap[providerId] || providerId,
-    }));
-  };
-
-  // Mapping of provider IDs to display names
-  const providerNameMap: Record<string, string> = {
-    ollama: "Ollama",
-    openai: "OpenAI",
-    anthropic: "Anthropic",
-    google: "Gemini",
-    deepseek: "DeepSeek",
-  };
-
-  // ステータスの日本語表示を取得
-  const getStatusLabel = (status: string): string => {
-    switch (status) {
-      case "pending":
-        return "待機中";
-      case "processing":
-        return "処理中";
-      case "completed":
-        return "完了";
-      case "failed":
-        return "失敗";
-      default:
-        return status;
-    }
-  };
-
-  // ステータスに応じたバッジのスタイルを取得
-  const getStatusBadgeClass = (status: string): string => {
-    switch (status) {
-      case "pending":
-        return "badge-warning";
-      case "processing":
-        return "badge-info";
-      case "completed":
-        return "badge-primary";
-      case "failed":
-        return "badge-error";
-      default:
-        return "badge-neutral";
-    }
-  };
-
-  // Get all models for the selected provider as react-select options
-  const getModelOptions = (): SelectOption[] => {
-    if (!availableModels[selectedProvider]) return [];
-    return availableModels[selectedProvider].map((modelId) => ({
-      value: modelId,
-      label: modelId,
-    }));
-  };
-
-  const handleProviderChange = (option: SelectOption | null) => {
-    if (!option) return;
-
-    const newProvider = option.value;
-    setSelectedProvider(newProvider);
+  const handleProviderChange = (provider: string) => {
+    setSelectedProvider(provider);
 
     // Save to localStorage
-    localStorage.setItem("leadable-selected-provider", newProvider);
+    localStorage.setItem("leadable-selected-provider", provider);
 
     // Set default model for the selected provider
-    if (
-      availableModels[newProvider] &&
-      availableModels[newProvider].length > 0
-    ) {
-      const defaultModel = availableModels[newProvider][0];
+    if (availableModels[provider] && availableModels[provider].length > 0) {
+      const defaultModel = availableModels[provider][0];
       setSelectedModel(defaultModel);
       localStorage.setItem("leadable-selected-model", defaultModel);
     }
   };
 
-  const handleModelChange = (option: SelectOption | null) => {
-    if (!option) return;
-    const model = option.value;
+  const handleModelChange = (model: string) => {
     setSelectedModel(model);
     localStorage.setItem("leadable-selected-model", model);
   };
 
-  const handleApiKeyChange = (e: ChangeEvent<HTMLInputElement>) => {
-    const { value } = e.target;
-
+  const handleApiKeyChange = (value: string) => {
     // Update state
     setApiKeys((prev) => ({
       ...prev,
@@ -471,358 +343,41 @@ function App() {
     debounceSaveApiKeys(selectedProvider, value);
   };
 
-  // Render save status icon
-  const renderSaveStatus = () => {
-    switch (apiKeySaveStatus) {
-      case "saved":
-        return <Check size={16} className="text-success" />;
-      case "saving":
-        return <div className="loading loading-spinner loading-xs" />;
-      case "unsaved":
-        return <Save size={16} className="text-warning" />;
-    }
-  };
-
   return (
     <div className="min-h-screen bg-base-100">
       {/* Navbar */}
-      <div className="navbar bg-base-200 shadow-md">
-        <div className="navbar-start flex items-center">
-          <div className="flex items-center gap-2">
-            <img src="/icon.png" alt="Leadable" className="h-8 w-auto" />
-            <span className="text-2xl font-semibold">Leadable</span>
-          </div>
-        </div>
-        <div className="navbar-end">
-          <a
-            href="https://github.com/yashikota/leadable"
-            target="_blank"
-            className="btn btn-outline border-none"
-            rel="noreferrer"
-          >
-            <GithubIcon />
-          </a>
-        </div>
-      </div>
+      <Navbar />
 
       <div className="container mx-auto px-4 py-8 max-w-3xl">
-        {/* Dropzone */}
-        <div className="card">
-          <div className="card-body">
-            <div
-              className={`border-2 border-dashed rounded-lg p-12 text-center cursor-pointer transition-all duration-200 ${isDragging
-                  ? "border-primary bg-base-200"
-                  : "border-base-300 hover:border-primary/50"
-                }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-              onClick={handleClick}
-              onKeyDown={handleKeyDown}
-            >
-              <input
-                type="file"
-                ref={fileInputRef}
-                className="hidden"
-                accept="application/pdf"
-                onChange={handleFileInputChange}
-              />
+        {/* File Uploader */}
+        <FileUploader
+          onFileSelected={handleFileSelected}
+          isTranslating={isTranslating}
+          translationComplete={translationComplete}
+          onTranslate={handleTranslate}
+          error={error}
+          file={file}
+        />
 
-              {!file ? (
-                <div className="flex flex-col items-center justify-center">
-                  <FileUp size={48} className="text-base-content/70" />
-                  <p className="mt-4 text-lg font-medium">
-                    PDFファイルをドロップ
-                  </p>
-                  <p className="mt-2 text-sm text-base-content/70">
-                    または、クリックしてファイルを選択
-                  </p>
-                </div>
-              ) : (
-                <div className="flex flex-col items-center justify-center">
-                  <CircleCheckBig size={48} className="text-success" />
-                  <p className="mt-4 text-lg font-medium">{file.name}</p>
-                  <p className="mt-2 text-sm text-base-content/70">
-                    {(file.size / 1024 / 1024).toFixed(2)} MB
-                  </p>
-                </div>
-              )}
-            </div>
+        {/* File List */}
+        <FileList
+          tasks={translationTasks}
+          onDeleteTask={handleDeleteTask}
+        />
 
-            {error && (
-              <div className="alert alert-error bg-red-200 mt-2">
-                <CircleX size={24} />
-                <span>{error}</span>
-              </div>
-            )}
-
-            <div className="card-actions justify-center mt-2">
-              {file && !translationComplete && (
-                <button
-                  type="button"
-                  className={`btn btn-neutral ${isTranslating ? "btn-disabled" : ""}`}
-                  onClick={handleTranslate}
-                  disabled={isTranslating}
-                >
-                  {isTranslating ? (
-                    <>
-                      <span className="loading loading-spinner" />
-                      アップロード中
-                    </>
-                  ) : (
-                    "アップロード"
-                  )}
-                </button>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {translationTasks.length > 0 && (
-          <div className="mt-4">
-            <h2 className="text-xl font-bold mb-4">ファイル一覧</h2>
-            <div className="overflow-x-auto">
-              <table className="table w-full">
-                <thead>
-                  <tr>
-                    <th>ファイル名</th>
-                    <th>ステータス</th>
-                    <th>作成日時</th>
-                    <th className="text-right">アクション</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {translationTasks
-                    .slice()
-                    .sort(
-                      (a, b) =>
-                        new Date(b.created_at).getTime() -
-                        new Date(a.created_at).getTime(),
-                    )
-                    .map((task: Task) => (
-                      <tr key={task.task_id} className="hover">
-                        <td className="max-w-xs truncate">{task.filename}</td>
-                        <td>
-                          <span
-                            className={`badge ${getStatusBadgeClass(task.status)}`}
-                          >
-                            {getStatusLabel(task.status)}
-                          </span>
-                        </td>
-                        <td>{new Date(task.created_at).toLocaleString()}</td>
-                        <td className="text-right">
-                          <div className="join">
-                            {task.status === "completed" ? (
-                              <a
-                                href={task.translated_url}
-                                className="btn btn-sm join-item hover:bg-blue-200 border-none"
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                aria-label="開く"
-                              >
-                                <SquareArrowOutUpRight size={18} />
-                              </a>
-                            ) : (
-                              <button
-                                className="btn btn-sm join-item hover:bg-blue-200 border-none opacity-50 cursor-not-allowed"
-                                disabled
-                                aria-label="準備中"
-                              >
-                                <SquareArrowOutUpRight size={18} />
-                              </button>
-                            )}
-                            <button
-                              type="button"
-                              className="btn btn-sm join-item hover:bg-red-200 border-none"
-                              onClick={() => {
-                                (
-                                  document.getElementById(
-                                    `delete-modal-${task.task_id}`,
-                                  ) as HTMLDialogElement
-                                ).showModal();
-                                setTimeout(() => {
-                                  const modal = document.getElementById(
-                                    `delete-modal-${task.task_id}`,
-                                  ) as HTMLDialogElement;
-                                  if (modal.open) {
-                                    modal.showModal();
-                                  }
-                                }, 0);
-                              }}
-                              aria-label="削除"
-                            >
-                              <Trash2 size={18} />
-                            </button>
-
-                            {/* Delete confirmation modal */}
-                            <dialog
-                              id={`delete-modal-${task.task_id}`}
-                              className="modal modal-bottom sm:modal-middle"
-                            >
-                              <div className="modal-box">
-                                <p className="py-4 text-xl">
-                                  「{task.filename}
-                                  」を削除してもよろしいですか？
-                                </p>
-                                <div className="modal-action">
-                                  <form method="dialog">
-                                    <button className="btn mr-2">
-                                      キャンセル
-                                    </button>
-                                  </form>
-                                  <button
-                                    type="button"
-                                    className="btn btn-error"
-                                    onClick={() => {
-                                      handleDeleteTask(task.task_id);
-                                      document.getElementById(
-                                        `delete-modal-${task.task_id}`,
-                                      );
-                                    }}
-                                  >
-                                    削除する
-                                  </button>
-                                </div>
-                              </div>
-                            </dialog>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-
-        {/* Settings */}
-        <div className="collapse collapse-arrow bg-slate-100 mt-8 rounded-box">
-          <input type="checkbox" />
-          <div className="collapse-title flex justify-between items-center">
-            <div className="text-lg font-medium flex items-center gap-2">
-              <Settings size={18} />
-              LLM設定
-            </div>
-            {selectedProvider && selectedModel && (
-              <div className="text-sm font-medium">
-                <span className="badge badge-secondary">
-                  {providerNameMap[selectedProvider] || selectedProvider}
-                </span>{" "}
-                / <span className="badge badge-secondary">{selectedModel}</span>
-              </div>
-            )}
-          </div>
-          <div className="collapse-content">
-            {selectedProvider !== "ollama" && !apiKeys[selectedProvider] && (
-              <div className="alert alert-warning py-2 mb-2 text-sm">
-                <span>
-                  APIキーが必要です。下部でAPIキーを設定してください。
-                </span>
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">
-              <div className="form-control">
-                <label htmlFor="provider-select" className="label">
-                  <span className="label-text">プロバイダー</span>
-                </label>
-                <select
-                  id="provider-select"
-                  className="select select-bordered w-full bg-white"
-                  value={selectedProvider}
-                  onChange={(e) => {
-                    const newProvider = e.target.value;
-                    handleProviderChange({
-                      value: newProvider,
-                      label: providerNameMap[newProvider] || newProvider,
-                    });
-                  }}
-                  disabled={isLoadingModels}
-                >
-                  <option disabled value="">
-                    プロバイダーを選択
-                  </option>
-                  {getProviderOptions().map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {isLoadingModels && (
-                  <div className="mt-2 text-center">
-                    <span className="loading loading-spinner loading-sm" />
-                  </div>
-                )}
-              </div>
-
-              <div className="form-control">
-                <label htmlFor="model-select" className="label">
-                  <span className="label-text">モデル</span>
-                </label>
-                <select
-                  id="model-select"
-                  className="select select-bordered w-full bg-white"
-                  value={selectedModel}
-                  onChange={(e) => {
-                    const newModel = e.target.value;
-                    handleModelChange({
-                      value: newModel,
-                      label: newModel,
-                    });
-                  }}
-                  disabled={isLoadingModels}
-                >
-                  <option disabled value="">
-                    モデルを選択
-                  </option>
-                  {getModelOptions().map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-                {isLoadingModels && (
-                  <div className="mt-2 text-center">
-                    <span className="loading loading-spinner loading-sm" />
-                  </div>
-                )}
-              </div>
-            </div>
-
-            {selectedProvider !== "ollama" && (
-              <div className="mt-4">
-                <div className="form-control w-full">
-                  <label htmlFor="api-key-input" className="label">
-                    <span className="label-text">API キー</span>
-                    <span className="label-text-alt flex items-center gap-1">
-                      {apiKeySaveStatus === "saved"
-                        ? "保存済み"
-                        : apiKeySaveStatus === "saving"
-                          ? "保存中..."
-                          : "未保存"}
-                      {renderSaveStatus()}
-                    </span>
-                  </label>
-                  <div className="join w-full">
-                    <input
-                      id="api-key-input"
-                      type="password"
-                      placeholder="sk-*************************************"
-                      className="input input-bordered input-primary w-full bg-white"
-                      value={apiKeys[selectedProvider] || ""}
-                      onChange={handleApiKeyChange}
-                    />
-                  </div>
-                  <label htmlFor="api-key-input" className="label">
-                    <span className="label-text-alt text-base-content/70 mt-2">
-                      APIキーはローカルに保存され、共有されません。
-                    </span>
-                  </label>
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
+        {/* LLM Settings */}
+        <LLMSettings
+          selectedProvider={selectedProvider}
+          selectedModel={selectedModel}
+          availableModels={availableModels}
+          isLoadingModels={isLoadingModels}
+          onProviderChange={handleProviderChange}
+          onModelChange={handleModelChange}
+          apiKeys={apiKeys}
+          onApiKeyChange={handleApiKeyChange}
+          apiKeySaveStatus={apiKeySaveStatus}
+          providerNameMap={providerNameMap}
+        />
       </div>
     </div>
   );
