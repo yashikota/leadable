@@ -29,6 +29,14 @@ services:
       start_period: 10s
       test: curl -f http://localhost:8000/health/backend || exit 1
       timeout: 30s
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities:
+                - gpu
+              count: 1
+              driver: nvidia
     develop:
       watch:
         - action: sync
@@ -38,14 +46,6 @@ services:
           target: /app
         - action: rebuild
           path: ./pyproject.toml
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities:
-                - gpu
-              count: 1
-              driver: nvidia
   dozzle:
     image: amir20/dozzle:v8.11.9
     container_name: dozzle
@@ -55,6 +55,15 @@ services:
         type: bind
     ports:
       - '8780:8080'
+  duckduckgo:
+    build:
+      context: backend
+      dockerfile: Dockerfile
+    container_name: duckduckgo
+    environment:
+      - TZ=Asia/Tokyo
+    command: python /app/src/service/duckduckgo.py
+    restart: always
   frontend:
     build:
       args:
@@ -193,6 +202,14 @@ services:
       retries: 3
       test: bash -c ':> /dev/tcp/127.0.0.1/6333' || exit 1
       timeout: 5s
+  qdrant-mcp:
+    build:
+      context: backend/src/mcp
+      dockerfile: qdrant.Dockerfile
+    container_name: qdrant-mcp
+    environment:
+      - TZ=Asia/Tokyo
+    restart: always
   rabbitmq:
     image: rabbitmq:4.0.7-management-alpine
     container_name: rabbitmq
