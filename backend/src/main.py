@@ -6,8 +6,10 @@ from discord_webhook import DiscordWebhook
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from nanoid import generate
 
 from service.db import (
+    TaskStatus,
     delete_task,
     get_all_tasks,
     get_task,
@@ -98,20 +100,29 @@ async def translate_endpoint(
     try:
         data = await file.read()
 
-        logger.info(f"[{file.filename}] {provider} / {model}")
+        # Generate a unique task ID
+        task_id = generate()
+        basename, ext = os.path.splitext(file.filename)
+        filename = f"{basename}-{task_id}{ext}"
+        logger.info(f"[{task_id}] {filename} | {provider} / {model}")
 
-        # Check if the model is valid
-        if provider and model and api_key:
-            is_valid_model = await check_valid_model(provider, model, api_key)
-            if not is_valid_model:
+        if provider and model:
+            if provider != "ollama" and not api_key:
                 return JSONResponse(
-                    status_code=400, content={"message": "Invalid model"}
+                    status_code=400,
+                    content={"message": f"API key is required for {provider}"},
                 )
 
+            # Check if the model is valid with the provided API key
+            if provider and model and api_key:
+                is_valid_model = await check_valid_model(provider, model, api_key)
+                if not is_valid_model:
+                    return JSONResponse(
+                        status_code=404,
+                        content={"message": "Model not found or invalid API key"},
+                    )
+
         # Upload the file to storage
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        basename, ext = os.path.splitext(file.filename)
-        filename = f"{basename}-{timestamp}{ext}"
         is_upload_success = await upload_file(
             data, f"uploads/{filename}", file.content_type
         )
@@ -119,33 +130,47 @@ async def translate_endpoint(
             return JSONResponse(
                 status_code=400, content={"message": "Uploaded File upload failed"}
             )
-        original_file = {
-            "filename": file.filename,
-            "url": get_file_url(f"uploads/{filename}"),
-        }
+        logger.info(f"File uploaded successfully: {filename}")
+
+        # Create a TranslationService instance
+        ts = TranslationService()
+        ts.task_id = task_id
+        ts.status = TaskStatus.PENDING
+        ts.filename = filename
+        ts.content_type = file.content_type
+        ts.timestamp = datetime.now().isoformat()
+        ts.original_url = get_file_url(f"uploads/{filename}")
+        ts.translated_url = get_file_url(f"translated/{filename}")
+        ts.source_lang = source_lang
+        ts.target_lang = target_lang
+        ts.provider = provider
+        ts.model_name = model
+        ts.api_key = api_key
 
         # Translate the PDF file
-        is_translate_success, result_pdf = await TranslationService.pdf_translate(
-            data, provider, model, api_key, source_lang, target_lang
-        )
-        if not is_translate_success:
-            return JSONResponse(
-                status_code=400, content={"message": "Translation failed"}
-            )
+        # is_translate_success, result_pdf = await ts.pdf_translate(data)
+        # if not is_translate_success:
+        #     return JSONResponse(
+        #         status_code=400, content={"message": "Translation failed"}
+        #     )
+
         is_upload_success = await upload_file(
-            result_pdf, f"translated/{filename}", file.content_type
+            data, f"translated/{filename}", file.content_type
         )
         if not is_upload_success:
             return JSONResponse(
                 status_code=400, content={"message": "Translated File upload failed"}
             )
-        translated_file = {
-            "filename": file.filename,
-            "url": get_file_url(f"translated/{filename}"),
-        }
+        logger.info(f"File uploaded successfully: {filename}")
 
         # Store the translation result
-        task_id = await store_result(original_file, translated_file)
+        is_store_result = await store_result(ts)
+        if not is_store_result:
+            return JSONResponse(
+                status_code=400,
+                content={"message": "Failed to store translation result"},
+            )
+        logger.info(f"Translation result stored successfully: {ts.task_id}")
 
         # Discord Webhook
         if discord_webhook_url := os.getenv("DISCORD_WEBHOOK_URL"):
@@ -156,7 +181,7 @@ async def translate_endpoint(
             response = webhook.execute()
             logger.info(f"Discord Webhook response: {response}")
 
-        return JSONResponse(status_code=200, content={"task_id": task_id})
+        return JSONResponse(status_code=200, content={"task_id": ts.task_id})
     except Exception as e:
         logger.error(f"Translation request error: {str(e)}")
         return JSONResponse(status_code=400, content={"message": "Translation failed"})

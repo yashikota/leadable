@@ -1,11 +1,23 @@
+enum TaskStatus {
+  PENDING = "pending",
+  IN_PROGRESS = "in_progress",
+  COMPLETED = "completed",
+  FAILED = "failed",
+}
+
 export interface Task {
   _id: string;
   task_id: string;
+  status: TaskStatus;
   timestamp: string;
-  original_filename: string;
-  original_file_url: string;
-  translated_filename: string;
-  translated_file_url: string;
+  filename: string;
+  original_url: string;
+  translated_url: string;
+  source_lang: string;
+  target_lang: string;
+  provider: string;
+  model_name: string;
+  content_type: string;
 }
 
 // Define interface for react-select options

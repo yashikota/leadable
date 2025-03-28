@@ -1,6 +1,5 @@
 import os
-import uuid
-from datetime import datetime
+from enum import Enum
 
 from pymongo import MongoClient
 from pymongo.errors import OperationFailure
@@ -14,6 +13,13 @@ MONGO_USERNAME = os.getenv("MONGO_INITDB_ROOT_USERNAME", "root")
 MONGO_PASSWORD = os.getenv("MONGO_INITDB_ROOT_PASSWORD", "example")
 MONGO_DB = os.getenv("MONGO_DB", "leadable")
 MONGO_COLLECTION_TASKS = "tasks"
+
+
+class TaskStatus(str, Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
 
 
 def get_mongo_client():
@@ -37,33 +43,36 @@ def get_mongo_client():
 
 
 def get_database(database_name=MONGO_DB):
-    """
-    Get the specified database.
-    """
     client = get_mongo_client()
     return client[database_name]
 
 
 def get_collection(collection_name, database_name=MONGO_DB):
-    """
-    Get the specified collection from the database.
-    """
     db = get_database(database_name)
     return db[collection_name]
 
 
-async def store_result(original_file, translated_file) -> str:
-    task = {
-        "task_id": str(uuid.uuid4()),
-        "timestamp": datetime.now().isoformat(),
-        "original_filename": original_file["filename"],
-        "original_file_url": original_file["url"],
-        "translated_filename": translated_file["filename"],
-        "translated_file_url": translated_file["url"],
-    }
-    tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
-    tasks_collection.insert_one(task)
-    return str(task["task_id"])
+async def store_result(ts) -> bool:
+    try:
+        task = {
+            "task_id": ts.task_id,
+            "status": ts.status,
+            "timestamp": ts.timestamp,
+            "filename": ts.filename,
+            "original_url": ts.original_url,
+            "translated_url": ts.translated_url,
+            "source_lang": ts.source_lang,
+            "target_lang": ts.target_lang,
+            "provider": ts.provider,
+            "model_name": ts.model_name,
+            "content_type": ts.content_type,
+        }
+        tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
+        tasks_collection.insert_one(task)
+        return True
+    except Exception as e:
+        logger.error(f"Error storing result: {str(e)}")
+        return False
 
 
 async def get_all_tasks():

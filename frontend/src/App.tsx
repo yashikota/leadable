@@ -213,6 +213,9 @@ function App() {
         body: formData,
       });
 
+      if (response.status === 404) {
+        throw new Error("プロバイダーまたはモデルが見つかりません");
+      }
       if (response.status !== 200) {
         const errorData = await response
           .json()
@@ -221,12 +224,8 @@ function App() {
           errorData.message || `HTTP error! status: ${response.status}`,
         );
       }
-
-      const data = await response.json();
-      const taskId = data.task_id;
-
-      await handleGetTask(taskId);
-      setTranslationComplete(true);
+      resetForm();
+      handleGetTasks();
     } catch (err) {
       console.error("Translation request failed:", err);
       const errorMessage =
@@ -252,18 +251,18 @@ function App() {
     }
   };
 
-  const handleGetTask = async (taskId: string) => {
-    try {
-      const response = await fetch(`${API_URL}/task/${taskId}`);
-      if (!response.ok) {
-        throw new Error("Failed to fetch translation task");
-      }
-      const data = (await response.json()) as Task;
-      setTranslationTasks((prev) => [...prev, data]);
-    } catch (err) {
-      console.error("Failed to fetch translation task:", err);
-    }
-  };
+  // const handleGetTask = async (taskId: string) => {
+  //   try {
+  //     const response = await fetch(`${API_URL}/task/${taskId}`);
+  //     if (!response.ok) {
+  //       throw new Error("Failed to fetch translation task");
+  //     }
+  //     const data = (await response.json()) as Task;
+  //     setTranslationTasks((prev) => [...prev, data]);
+  //   } catch (err) {
+  //     console.error("Failed to fetch translation task:", err);
+  //   }
+  // };
 
   const handleDeleteTask = (task_id: string) => {
     fetch(`${API_URL}/task/${task_id}`, {
@@ -308,10 +307,41 @@ function App() {
     deepseek: "DeepSeek",
   };
 
+  // ステータスの日本語表示を取得
+  const getStatusLabel = (status: string): string => {
+    switch (status) {
+      case "pending":
+        return "待機中";
+      case "in_progress":
+        return "処理中";
+      case "completed":
+        return "完了";
+      case "failed":
+        return "失敗";
+      default:
+        return status;
+    }
+  };
+
+  // ステータスに応じたバッジのスタイルを取得
+  const getStatusBadgeClass = (status: string): string => {
+    switch (status) {
+      case "pending":
+        return "badge-warning";
+      case "in_progress":
+        return "badge-info";
+      case "completed":
+        return "badge-success";
+      case "failed":
+        return "badge-error";
+      default:
+        return "badge-neutral";
+    }
+  };
+
   // Get all models for the selected provider as react-select options
   const getModelOptions = (): SelectOption[] => {
     if (!availableModels[selectedProvider]) return [];
-
     return availableModels[selectedProvider].map((modelId) => ({
       value: modelId,
       label: modelId,
@@ -462,27 +492,6 @@ function App() {
                   )}
                 </button>
               )}
-
-              {translationComplete && (
-                <div className="flex flex-col sm:flex-row gap-2 w-full">
-                  <a
-                    href={translationTasks[0].translated_file_url}
-                    className="btn btn-primary flex-1"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
-                    <SquareArrowOutUpRight size={20} className="mr-2" />
-                    開く
-                  </a>
-                  <button
-                    type="button"
-                    className="btn btn-outline flex-1"
-                    onClick={resetForm}
-                  >
-                    新しいPDFを翻訳
-                  </button>
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -510,24 +519,36 @@ function App() {
                     )
                     .map((task: Task) => (
                       <tr key={task.task_id} className="hover">
-                        <td className="max-w-xs truncate">
-                          {task.original_filename}
-                        </td>
+                        <td className="max-w-xs truncate">{task.filename}</td>
                         <td>
-                          <span className="badge badge-primary">完了</span>
+                          <span
+                            className={`badge ${getStatusBadgeClass(task.status)}`}
+                          >
+                            {getStatusLabel(task.status)}
+                          </span>
                         </td>
                         <td>{new Date(task.timestamp).toLocaleString()}</td>
                         <td className="text-right">
                           <div className="join">
-                            <a
-                              href={task.translated_file_url}
-                              className="btn btn-sm join-item hover:bg-blue-200 border-none"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              aria-label="開く"
-                            >
-                              <SquareArrowOutUpRight size={18} />
-                            </a>
+                            {task.status === "completed" ? (
+                              <a
+                                href={task.translated_url}
+                                className="btn btn-sm join-item hover:bg-blue-200 border-none"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                aria-label="開く"
+                              >
+                                <SquareArrowOutUpRight size={18} />
+                              </a>
+                            ) : (
+                              <button
+                                className="btn btn-sm join-item hover:bg-blue-200 border-none opacity-50 cursor-not-allowed"
+                                disabled
+                                aria-label="準備中"
+                              >
+                                <SquareArrowOutUpRight size={18} />
+                              </button>
+                            )}
                             <button
                               type="button"
                               className="btn btn-sm join-item hover:bg-red-200 border-none"
@@ -550,7 +571,7 @@ function App() {
                             >
                               <div className="modal-box">
                                 <p className="py-4 text-xl">
-                                  「{task.original_filename}
+                                  「{task.filename}
                                   」を削除してもよろしいですか？
                                 </p>
                                 <div className="modal-action">

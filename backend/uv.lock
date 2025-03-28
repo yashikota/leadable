@@ -697,6 +697,7 @@ dependencies = [
     { name = "ja-core-news-sm" },
     { name = "litellm" },
     { name = "minio" },
+    { name = "nanoid" },
     { name = "numpy" },
     { name = "ollama" },
     { name = "pika" },
@@ -723,6 +724,7 @@ requires-dist = [
     { name = "ja-core-news-sm", url = "https://github.com/explosion/spacy-models/releases/download/ja_core_news_sm-3.7.0/ja_core_news_sm-3.7.0.tar.gz" },
     { name = "litellm", specifier = ">=1.63.12" },
     { name = "minio", specifier = ">=7.2.15" },
+    { name = "nanoid", specifier = ">=2.0.0" },
     { name = "numpy", specifier = "<2" },
     { name = "ollama", specifier = ">=0.3.3" },
     { name = "pika", specifier = ">=1.3.2" },
@@ -898,6 +900,15 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/48/e7/6627e0f8173f0bd2463e3aa50dff6c71e951a0cbd835db18843e0546bc0c/murmurhash-1.0.10-cp312-cp312-manylinux_2_17_aarch64.manylinux2014_aarch64.whl", hash = "sha256:b3b6d2d877d8881a08be66d906856d05944be0faf22b9a0390338bcf45299989", size = 28311 },
     { url = "https://files.pythonhosted.org/packages/e8/1b/6a6a3d942a31a37e6e30e18e8ddf284098a50cc4e9a7e2742a83c66845e8/murmurhash-1.0.10-cp312-cp312-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:d8f54b0031d8696fed17ed6e9628f339cdea0ba2367ca051e18ff59193f52687", size = 29130 },
     { url = "https://files.pythonhosted.org/packages/3b/56/8630be974aeb05868f2058db0ce6f19d85c27adb9b8f733cf69c856afdaa/murmurhash-1.0.10-cp312-cp312-win_amd64.whl", hash = "sha256:97e09d675de2359e586f09de1d0de1ab39f9911edffc65c9255fb5e04f7c1f85", size = 25350 },
+]
+
+[[package]]
+name = "nanoid"
+version = "2.0.0"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/b7/9d/0250bf5935d88e214df469d35eccc0f6ff7e9db046fc8a9aeb4b2a192775/nanoid-2.0.0.tar.gz", hash = "sha256:5a80cad5e9c6e9ae3a41fa2fb34ae189f7cb420b2a5d8f82bd9d23466e4efa68", size = 3290 }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/2e/0d/8630f13998638dc01e187fadd2e5c6d42d127d08aeb4943d231664d6e539/nanoid-2.0.0-py3-none-any.whl", hash = "sha256:90aefa650e328cffb0893bbd4c236cfd44c48bc1f2d0b525ecc53c3187b653bb", size = 5844 },
 ]
 
 [[package]]
