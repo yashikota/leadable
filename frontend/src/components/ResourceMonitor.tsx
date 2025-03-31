@@ -1,7 +1,16 @@
-import { useEffect, useState, useRef } from "react";
-import { Link } from "react-router";
 import { ArrowLeft } from "lucide-react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
+import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router";
+import {
+  CartesianGrid,
+  Legend,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
 import { API_URL } from "../App";
 
 // APIから返されるリソース情報の型
@@ -62,14 +71,18 @@ export function ResourceMonitor() {
         const timeString = now.toLocaleTimeString();
 
         // グラフ用データの更新 (CPU使用率はそのまま使用、100%を超えないようにする)
-        setChartData(prevData => {
-          const newData = [...prevData, {
-            time: timeString,
-            cpuTotal: data.cpu.total, // 元の値をそのまま使用 (0.0 〜 1.0)
-            memoryUsage: data.cpu.memory,
-            gpuUtilization: data.gpu.utilization,
-            gpuMemoryUsage: (data.gpu.memory_used / data.gpu.memory_total) * 100 // パーセント表示に変換
-          }];
+        setChartData((prevData) => {
+          const newData = [
+            ...prevData,
+            {
+              time: timeString,
+              cpuTotal: data.cpu.total, // 元の値をそのまま使用 (0.0 〜 1.0)
+              memoryUsage: data.cpu.memory,
+              gpuUtilization: data.gpu.utilization,
+              gpuMemoryUsage:
+                (data.gpu.memory_used / data.gpu.memory_total) * 100, // パーセント表示に変換
+            },
+          ];
 
           // データ点が多すぎる場合は古いものから削除 (60秒分のデータを保持)
           if (newData.length > 60) {
@@ -79,7 +92,11 @@ export function ResourceMonitor() {
         });
       } catch (err) {
         console.error("リソース情報の取得に失敗しました:", err);
-        setError(err instanceof Error ? err.message : "リソース情報の取得に失敗しました");
+        setError(
+          err instanceof Error
+            ? err.message
+            : "リソース情報の取得に失敗しました",
+        );
       }
     };
 
@@ -125,14 +142,18 @@ export function ResourceMonitor() {
           const now = new Date();
           const timeString = now.toLocaleTimeString();
 
-          setChartData(prevData => {
-            const newData = [...prevData, {
-              time: timeString,
-              cpuTotal: data.cpu.total, // 元の値をそのまま使用
-              memoryUsage: data.cpu.memory,
-              gpuUtilization: data.gpu.utilization,
-              gpuMemoryUsage: (data.gpu.memory_used / data.gpu.memory_total) * 100
-            }];
+          setChartData((prevData) => {
+            const newData = [
+              ...prevData,
+              {
+                time: timeString,
+                cpuTotal: data.cpu.total, // 元の値をそのまま使用
+                memoryUsage: data.cpu.memory,
+                gpuUtilization: data.gpu.utilization,
+                gpuMemoryUsage:
+                  (data.gpu.memory_used / data.gpu.memory_total) * 100,
+              },
+            ];
 
             if (newData.length > 60) {
               return newData.slice(newData.length - 60);
@@ -141,7 +162,11 @@ export function ResourceMonitor() {
           });
         } catch (err) {
           console.error("リソース情報の取得に失敗しました:", err);
-          setError(err instanceof Error ? err.message : "リソース情報の取得に失敗しました");
+          setError(
+            err instanceof Error
+              ? err.message
+              : "リソース情報の取得に失敗しました",
+          );
         }
       };
 
@@ -160,30 +185,17 @@ export function ResourceMonitor() {
           <ArrowLeft size={18} className="mr-2" /> 一覧に戻る
         </Link>
         <button
-          className={`btn btn-sm ${isMonitoring ? 'btn-error' : 'btn-success'}`}
+          className={`btn btn-sm ${isMonitoring ? "btn-error" : "btn-success"}`}
           onClick={toggleMonitoring}
         >
-          {isMonitoring ? 'モニタリング停止' : 'モニタリング開始'}
+          {isMonitoring ? "モニタリング停止" : "モニタリング開始"}
         </button>
       </div>
 
       <h2 className="text-2xl font-bold mb-4">システムリソースモニタ</h2>
 
       {error && (
-        <div className="alert alert-error mb-4">
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            className="stroke-current shrink-0 h-6 w-6"
-            fill="none"
-            viewBox="0 0 24 24"
-          >
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth="2"
-              d="M10 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2m7-2a9 9 0 11-18 0 9 9 0 0118 0z"
-            />
-          </svg>
+        <div className="alert alert-error shadow-lg mb-4">
           <span>{error}</span>
         </div>
       )}
@@ -193,7 +205,9 @@ export function ResourceMonitor() {
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <h3 className="card-title">CPU 使用率</h3>
-              <div className="text-3xl font-bold">{(resourceData.cpu.total * 100).toFixed(1)}%</div>
+              <div className="text-3xl font-bold">
+                {(resourceData.cpu.total * 100).toFixed(1)}%
+              </div>
               <div className="mt-2">
                 <div className="flex justify-between text-sm mb-1">
                   <span>使用率</span>
@@ -203,7 +217,7 @@ export function ResourceMonitor() {
                   className="progress progress-primary"
                   value={resourceData.cpu.total * 100}
                   max="100"
-                ></progress>
+                />
               </div>
             </div>
           </div>
@@ -211,7 +225,9 @@ export function ResourceMonitor() {
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <h3 className="card-title">メモリ使用率</h3>
-              <div className="text-3xl font-bold">{resourceData.cpu.memory.toFixed(1)}%</div>
+              <div className="text-3xl font-bold">
+                {resourceData.cpu.memory.toFixed(1)}%
+              </div>
               <div className="mt-2">
                 <div className="flex justify-between text-sm mb-1">
                   <span>使用率</span>
@@ -221,7 +237,7 @@ export function ResourceMonitor() {
                   className="progress progress-primary"
                   value={resourceData.cpu.memory}
                   max="100"
-                ></progress>
+                />
               </div>
             </div>
           </div>
@@ -229,7 +245,9 @@ export function ResourceMonitor() {
           <div className="card bg-base-100 shadow-xl">
             <div className="card-body">
               <h3 className="card-title">GPU 使用率</h3>
-              <div className="text-3xl font-bold">{resourceData.gpu.utilization}%</div>
+              <div className="text-3xl font-bold">
+                {resourceData.gpu.utilization}%
+              </div>
               <div className="mt-2">
                 <div className="flex justify-between text-sm mb-1">
                   <span>使用率</span>
@@ -239,7 +257,7 @@ export function ResourceMonitor() {
                   className="progress progress-primary"
                   value={resourceData.gpu.utilization}
                   max="100"
-                ></progress>
+                />
               </div>
             </div>
           </div>
@@ -248,18 +266,26 @@ export function ResourceMonitor() {
             <div className="card-body">
               <h3 className="card-title">GPU メモリ使用率</h3>
               <div className="text-3xl font-bold">
-                {resourceData.gpu.memory_used} / {resourceData.gpu.memory_total} MB
+                {resourceData.gpu.memory_used} / {resourceData.gpu.memory_total}{" "}
+                MB
               </div>
               <div className="mt-2">
                 <div className="flex justify-between text-sm mb-1">
                   <span>使用率</span>
-                  <span>{((resourceData.gpu.memory_used / resourceData.gpu.memory_total) * 100).toFixed(1)}%</span>
+                  <span>
+                    {(
+                      (resourceData.gpu.memory_used /
+                        resourceData.gpu.memory_total) *
+                      100
+                    ).toFixed(1)}
+                    %
+                  </span>
                 </div>
                 <progress
                   className="progress progress-primary"
                   value={resourceData.gpu.memory_used}
                   max={resourceData.gpu.memory_total}
-                ></progress>
+                />
               </div>
             </div>
           </div>

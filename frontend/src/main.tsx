@@ -8,8 +8,8 @@ import {
 } from "react-router";
 
 import App from "./App.tsx";
-import { TaskDetail } from "./components/TaskDetail.tsx";
 import { ResourceMonitor } from "./components/ResourceMonitor.tsx";
+import { TaskDetail } from "./components/TaskDetail.tsx";
 
 const router = createBrowserRouter(
   createRoutesFromElements(
