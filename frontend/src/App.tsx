@@ -155,7 +155,10 @@ function App() {
       }
 
       if (!response.ok) {
-        throw new Error("Failed to fetch models");
+        if (response.status === 503) {
+          throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+        }
+        throw new Error(`モデル情報の取得に失敗しました (${response.status})`);
       }
       const data = await response.json();
       setAvailableModels(data);
@@ -171,6 +174,15 @@ function App() {
       }
     } catch (err) {
       console.error("Failed to fetch models:", err);
+      if (err instanceof Error) {
+        if (err.message.includes("Failed to fetch")) {
+          setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("モデル情報の取得に失敗しました");
+      }
     } finally {
       setIsLoadingModels(false);
     }
@@ -236,22 +248,29 @@ function App() {
       }
 
       if (response.status !== 200) {
+        if (response.status === 503) {
+          throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+        }
         const errorData = await response
           .json()
           .catch(() => ({ message: "翻訳リクエストの受付に失敗しました" }));
         throw new Error(
-          errorData.message || `HTTP error! status: ${response.status}`,
+          errorData.message || `翻訳リクエストの受付に失敗しました (${response.status})`,
         );
       }
       resetForm();
       handleGetTasks();
     } catch (err) {
       console.error("Translation request failed:", err);
-      const errorMessage =
-        err instanceof Error
-          ? (err as any).error || err.message
-          : "翻訳に失敗しました";
-      setError(errorMessage);
+      if (err instanceof Error) {
+        if (err.message.includes("Failed to fetch")) {
+          setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("翻訳リクエストの送信に失敗しました");
+      }
     } finally {
       setIsTranslating(false);
     }
@@ -265,16 +284,28 @@ function App() {
       const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
       if (errorMessage) {
         console.error("Failed to fetch translation tasks:", errorMessage);
-        return;
+        throw new Error(errorMessage);
       }
 
       if (!response.ok) {
-        throw new Error("Failed to fetch translation tasks");
+        if (response.status === 503) {
+          throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+        }
+        throw new Error(`タスク一覧の取得に失敗しました (${response.status})`);
       }
       const data = (await response.json()) as Task[];
       setTranslationTasks(data);
     } catch (err) {
       console.error("Failed to fetch translation tasks:", err);
+      if (err instanceof Error) {
+        if (err.message.includes("Failed to fetch")) {
+          setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+        } else {
+          setError(err.message);
+        }
+      } else {
+        setError("タスク一覧の取得に失敗しました");
+      }
     }
   };
 

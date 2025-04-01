@@ -63,16 +63,28 @@ export function TaskDetail() {
         }
 
         if (!response.ok) {
-          throw new Error("タスクの取得に失敗しました");
+          if (response.status === 503) {
+            throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+          }
+          if (response.status === 404) {
+            throw new Error("タスクが見つかりません");
+          }
+          throw new Error(`タスクの取得に失敗しました (${response.status})`);
         }
 
         const data = await response.json();
         setTask(data);
       } catch (err) {
         console.error("タスク詳細の取得に失敗しました:", err);
-        setError(
-          err instanceof Error ? err.message : "タスクの取得に失敗しました",
-        );
+        if (err instanceof Error) {
+          if (err.message.includes("Failed to fetch")) {
+            setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+          } else {
+            setError(err.message);
+          }
+        } else {
+          setError("タスクの取得に失敗しました");
+        }
       } finally {
         setLoading(false);
       }
@@ -92,18 +104,35 @@ export function TaskDetail() {
         // Check for error header
         const errorMessage = response.headers.get("X-LEADABLE-ERROR-MESSAGE");
         if (errorMessage) {
-          console.error("Failed to delete translation task:", errorMessage);
           throw new Error(errorMessage);
         }
 
         if (!response.ok) {
-          throw new Error("Failed to delete translation task");
+          if (response.status === 503) {
+            throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+          }
+          if (response.status === 404) {
+            throw new Error("タスクが見つかりません");
+          }
+          throw new Error(`タスクの削除に失敗しました (${response.status})`);
         }
 
         navigate("/");
       })
       .catch((err) => {
-        console.error("Failed to delete translation task:", err);
+        console.error("タスクの削除に失敗しました:", err);
+        if (err instanceof Error) {
+          if (err.message.includes("Failed to fetch")) {
+            setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+          } else {
+            setError(err.message);
+          }
+        } else {
+          setError("タスクの削除に失敗しました");
+        }
+      })
+      .finally(() => {
+        setIsDeleting(false);
       });
   };
 
