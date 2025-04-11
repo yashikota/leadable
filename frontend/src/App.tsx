@@ -156,7 +156,9 @@ function App() {
 
       if (!response.ok) {
         if (response.status === 503) {
-          throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+          throw new Error(
+            "バックエンドサービスが利用できません。しばらく待ってから再試行してください。",
+          );
         }
         throw new Error(`モデル情報の取得に失敗しました (${response.status})`);
       }
@@ -176,7 +178,9 @@ function App() {
       console.error("Failed to fetch models:", err);
       if (err instanceof Error) {
         if (err.message.includes("Failed to fetch")) {
-          setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+          setError(
+            "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+          );
         } else {
           setError(err.message);
         }
@@ -249,13 +253,16 @@ function App() {
 
       if (response.status !== 200) {
         if (response.status === 503) {
-          throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+          throw new Error(
+            "バックエンドサービスが利用できません。しばらく待ってから再試行してください。",
+          );
         }
         const errorData = await response
           .json()
           .catch(() => ({ message: "翻訳リクエストの受付に失敗しました" }));
         throw new Error(
-          errorData.message || `翻訳リクエストの受付に失敗しました (${response.status})`,
+          errorData.message ||
+            `翻訳リクエストの受付に失敗しました (${response.status})`,
         );
       }
       resetForm();
@@ -264,7 +271,9 @@ function App() {
       console.error("Translation request failed:", err);
       if (err instanceof Error) {
         if (err.message.includes("Failed to fetch")) {
-          setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+          setError(
+            "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+          );
         } else {
           setError(err.message);
         }
@@ -289,7 +298,9 @@ function App() {
 
       if (!response.ok) {
         if (response.status === 503) {
-          throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+          throw new Error(
+            "バックエンドサービスが利用できません。しばらく待ってから再試行してください。",
+          );
         }
         throw new Error(`タスク一覧の取得に失敗しました (${response.status})`);
       }
@@ -299,7 +310,9 @@ function App() {
       console.error("Failed to fetch translation tasks:", err);
       if (err instanceof Error) {
         if (err.message.includes("Failed to fetch")) {
-          setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+          setError(
+            "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+          );
         } else {
           setError(err.message);
         }

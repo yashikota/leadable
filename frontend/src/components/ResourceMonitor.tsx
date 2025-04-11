@@ -61,9 +61,13 @@ export function ResourceMonitor() {
 
         if (!response.ok) {
           if (response.status === 503) {
-            throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+            throw new Error(
+              "バックエンドサービスが利用できません。しばらく待ってから再試行してください。",
+            );
           }
-          throw new Error(`リソース情報の取得に失敗しました (${response.status})`);
+          throw new Error(
+            `リソース情報の取得に失敗しました (${response.status})`,
+          );
         }
 
         const data: ResourceData = await response.json();
@@ -97,7 +101,9 @@ export function ResourceMonitor() {
         console.error("リソース情報の取得に失敗しました:", err);
         if (err instanceof Error) {
           if (err.message.includes("Failed to fetch")) {
-            setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+            setError(
+              "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+            );
           } else {
             setError(err.message);
           }
@@ -140,7 +146,9 @@ export function ResourceMonitor() {
           }
 
           if (!response.ok) {
-            throw new Error(`リソース情報の取得に失敗しました (${response.status})`);
+            throw new Error(
+              `リソース情報の取得に失敗しました (${response.status})`,
+            );
           }
 
           const data: ResourceData = await response.json();
@@ -171,7 +179,9 @@ export function ResourceMonitor() {
           console.error("リソース情報の取得に失敗しました:", err);
           if (err instanceof Error) {
             if (err.message.includes("Failed to fetch")) {
-              setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+              setError(
+                "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+              );
             } else {
               setError(err.message);
             }

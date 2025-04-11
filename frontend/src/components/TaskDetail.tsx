@@ -64,7 +64,9 @@ export function TaskDetail() {
 
         if (!response.ok) {
           if (response.status === 503) {
-            throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+            throw new Error(
+              "バックエンドサービスが利用できません。しばらく待ってから再試行してください。",
+            );
           }
           if (response.status === 404) {
             throw new Error("タスクが見つかりません");
@@ -78,7 +80,9 @@ export function TaskDetail() {
         console.error("タスク詳細の取得に失敗しました:", err);
         if (err instanceof Error) {
           if (err.message.includes("Failed to fetch")) {
-            setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+            setError(
+              "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+            );
           } else {
             setError(err.message);
           }
@@ -109,7 +113,9 @@ export function TaskDetail() {
 
         if (!response.ok) {
           if (response.status === 503) {
-            throw new Error("バックエンドサービスが利用できません。しばらく待ってから再試行してください。");
+            throw new Error(
+              "バックエンドサービスが利用できません。しばらく待ってから再試行してください。",
+            );
           }
           if (response.status === 404) {
             throw new Error("タスクが見つかりません");
@@ -123,7 +129,9 @@ export function TaskDetail() {
         console.error("タスクの削除に失敗しました:", err);
         if (err instanceof Error) {
           if (err.message.includes("Failed to fetch")) {
-            setError("バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。");
+            setError(
+              "バックエンドサーバーに接続できません。サーバーが起動しているか確認してください。",
+            );
           } else {
             setError(err.message);
           }
