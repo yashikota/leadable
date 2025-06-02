@@ -11,10 +11,10 @@ from service.log import logger
 
 # Custom JSON encoder for MongoDB ObjectId
 class MongoJSONEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, ObjectId):
-            return str(obj)
-        return super().default(obj)
+    def default(self, o):
+        if isinstance(o, ObjectId):
+            return str(o)
+        return super().default(o)
 
 
 # Redis configuration
@@ -76,10 +76,13 @@ def get_redis_client():
 
 async def publish_task(task_data):
     try:
+        # Ensure ObjectId fields are converted to strings before serialization
+        cleaned_task_data = json.loads(json.dumps(task_data, cls=MongoJSONEncoder))
+
         # Use celery to publish task
         celery_app.send_task(
             "worker.process_translation_task",
-            args=[task_data],
+            args=[cleaned_task_data],
             queue=TRANSLATION_QUEUE,
         )
 

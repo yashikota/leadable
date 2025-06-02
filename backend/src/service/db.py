@@ -70,7 +70,8 @@ async def update_task_status(task_id: str, status: str):
 async def store_result(task_data: dict) -> bool:
     try:
         tasks_collection = get_collection(MONGO_COLLECTION_TASKS)
-        tasks_collection.insert_one(task_data)
+        task_data_copy = task_data.copy()
+        tasks_collection.insert_one(task_data_copy)
         return True
     except Exception as e:
         logger.error(f"Error storing result: {str(e)}")
