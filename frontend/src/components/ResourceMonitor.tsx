@@ -21,7 +21,7 @@ interface ResourceData {
     per_cpu: number[];
     memory: number;
   };
-  gpu: {
+  gpu?: {
     utilization: number;
     memory_used: number;
     memory_total: number;
@@ -85,9 +85,10 @@ export function ResourceMonitor() {
               time: timeString,
               cpuTotal: data.cpu.total, // 元の値をそのまま使用 (0.0 〜 1.0)
               memoryUsage: data.cpu.memory,
-              gpuUtilization: data.gpu.utilization,
-              gpuMemoryUsage:
-                (data.gpu.memory_used / data.gpu.memory_total) * 100, // パーセント表示に変換
+              gpuUtilization: data.gpu?.utilization || 0,
+              gpuMemoryUsage: data.gpu
+                ? (data.gpu.memory_used / data.gpu.memory_total) * 100
+                : 0, // パーセント表示に変換
             },
           ];
 
@@ -164,9 +165,10 @@ export function ResourceMonitor() {
                 time: timeString,
                 cpuTotal: data.cpu.total, // 元の値をそのまま使用
                 memoryUsage: data.cpu.memory,
-                gpuUtilization: data.gpu.utilization,
-                gpuMemoryUsage:
-                  (data.gpu.memory_used / data.gpu.memory_total) * 100,
+                gpuUtilization: data.gpu?.utilization || 0,
+                gpuMemoryUsage: data.gpu
+                  ? (data.gpu.memory_used / data.gpu.memory_total) * 100
+                  : 0,
               },
             ];
 
@@ -263,53 +265,70 @@ export function ResourceMonitor() {
             </div>
           </div>
 
-          <div className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-              <h3 className="card-title">GPU 使用率</h3>
-              <div className="text-3xl font-bold">
-                {resourceData.gpu.utilization}%
-              </div>
-              <div className="mt-2">
-                <div className="flex justify-between text-sm mb-1">
-                  <span>使用率</span>
-                  <span>{resourceData.gpu.utilization}%</span>
+          {!resourceData.gpu && (
+            <div className="card bg-base-100 shadow-xl col-span-full">
+              <div className="card-body">
+                <h3 className="card-title">GPU 情報</h3>
+                <div className="text-center py-4">
+                  <p className="text-base-content/70">
+                    GPU が検出されていません。NVIDIA GPU と nvidia-smi が利用可能な場合のみ GPU 情報が表示されます。
+                  </p>
                 </div>
-                <progress
-                  className="progress progress-primary"
-                  value={resourceData.gpu.utilization}
-                  max="100"
-                />
               </div>
             </div>
-          </div>
+          )}
 
-          <div className="card bg-base-100 shadow-xl">
-            <div className="card-body">
-              <h3 className="card-title">GPU メモリ使用率</h3>
-              <div className="text-3xl font-bold">
-                {resourceData.gpu.memory_used} / {resourceData.gpu.memory_total}{" "}
-                MB
-              </div>
-              <div className="mt-2">
-                <div className="flex justify-between text-sm mb-1">
-                  <span>使用率</span>
-                  <span>
-                    {(
-                      (resourceData.gpu.memory_used /
-                        resourceData.gpu.memory_total) *
-                      100
-                    ).toFixed(1)}
-                    %
-                  </span>
+          {resourceData.gpu && (
+            <>
+              <div className="card bg-base-100 shadow-xl">
+                <div className="card-body">
+                  <h3 className="card-title">GPU 使用率</h3>
+                  <div className="text-3xl font-bold">
+                    {resourceData.gpu.utilization}%
+                  </div>
+                  <div className="mt-2">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>使用率</span>
+                      <span>{resourceData.gpu.utilization}%</span>
+                    </div>
+                    <progress
+                      className="progress progress-primary"
+                      value={resourceData.gpu.utilization}
+                      max="100"
+                    />
+                  </div>
                 </div>
-                <progress
-                  className="progress progress-primary"
-                  value={resourceData.gpu.memory_used}
-                  max={resourceData.gpu.memory_total}
-                />
               </div>
-            </div>
-          </div>
+
+              <div className="card bg-base-100 shadow-xl">
+                <div className="card-body">
+                  <h3 className="card-title">GPU メモリ使用率</h3>
+                  <div className="text-3xl font-bold">
+                    {resourceData.gpu.memory_used} / {resourceData.gpu.memory_total}{" "}
+                    MB
+                  </div>
+                  <div className="mt-2">
+                    <div className="flex justify-between text-sm mb-1">
+                      <span>使用率</span>
+                      <span>
+                        {(
+                          (resourceData.gpu.memory_used /
+                            resourceData.gpu.memory_total) *
+                          100
+                        ).toFixed(1)}
+                        %
+                      </span>
+                    </div>
+                    <progress
+                      className="progress progress-primary"
+                      value={resourceData.gpu.memory_used}
+                      max={resourceData.gpu.memory_total}
+                    />
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
 
@@ -345,18 +364,22 @@ export function ResourceMonitor() {
                     name="メモリ使用率"
                     stroke="#82ca9d"
                   />
-                  <Line
-                    type="monotone"
-                    dataKey="gpuUtilization"
-                    name="GPU 使用率"
-                    stroke="#ff8042"
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="gpuMemoryUsage"
-                    name="GPU メモリ使用率"
-                    stroke="#ffc658"
-                  />
+                  {resourceData?.gpu && (
+                    <>
+                      <Line
+                        type="monotone"
+                        dataKey="gpuUtilization"
+                        name="GPU 使用率"
+                        stroke="#ff8042"
+                      />
+                      <Line
+                        type="monotone"
+                        dataKey="gpuMemoryUsage"
+                        name="GPU メモリ使用率"
+                        stroke="#ffc658"
+                      />
+                    </>
+                  )}
                 </LineChart>
               </ResponsiveContainer>
             ) : (

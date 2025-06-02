@@ -38,6 +38,15 @@ services:
           target: /app
         - action: rebuild
           path: ./pyproject.toml
+    # Required for GPU monitoring
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - capabilities:
+                - gpu
+              count: 1
+              driver: nvidia
   dozzle:
     image: amir20/dozzle:v8.11.9
     container_name: dozzle
