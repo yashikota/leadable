@@ -7,6 +7,7 @@ from datetime import datetime
 from fastapi import FastAPI, File, Form, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
+from litellm.exceptions import RateLimitError
 from nanoid import generate
 
 from service.db import (
@@ -100,6 +101,9 @@ async def translate_endpoint(
 
         # Generate a unique task ID
         task_id = generate()
+        if not file.filename:
+            return create_response(400, "ファイル名が指定されていません")
+
         basename, ext = os.path.splitext(file.filename)
         filename = f"{basename}-{task_id}{ext}"
         logger.info(f"[{task_id}] {filename} | {provider} / {model}")
@@ -113,16 +117,30 @@ async def translate_endpoint(
 
             # Check if the model is valid with the provided API key
             if provider and model and api_key:
-                is_valid_model = await check_valid_model(provider, model, api_key)
-                if not is_valid_model:
+                try:
+                    is_valid_model = await check_valid_model(provider, model, api_key)
+                    if not is_valid_model:
+                        return create_response(
+                            404,
+                            "モデルが見つかりません。別のモデルを選択してください",
+                        )
+                except RateLimitError as e:
+                    logger.error(f"Rate limit exceeded for {provider}/{model}: {str(e)}")
                     return create_response(
-                        404,
-                        "モデルが見つかりません。別のモデルを選択してください",
+                        429,
+                        f"APIの使用制限に達しました。しばらく待ってから再試行してください。",
+                    )
+                except Exception as e:
+                    logger.error(f"Model validation error for {provider}/{model}: {str(e)}")
+                    return create_response(
+                        400,
+                        "モデルの検証中にエラーが発生しました。APIキーまたはモデル名を確認してください。",
                     )
 
         # Upload the file to storage
+        content_type = file.content_type or "application/octet-stream"
         is_upload_success = await upload_file(
-            data, f"uploads/{filename}", file.content_type
+            data, f"uploads/{filename}", content_type
         )
         if not is_upload_success:
             return create_response(
@@ -137,7 +155,7 @@ async def translate_endpoint(
             "status": TaskStatus.PENDING.value,
             "created_at": datetime.now().isoformat(),
             "filename": filename,
-            "content_type": file.content_type,
+            "content_type": content_type,
             "original_url": get_file_url(f"uploads/{filename}"),
             "translated_url": get_file_url(f"translated/{filename}"),
             "source_lang": source_lang,
@@ -337,11 +355,14 @@ async def resource_endpoint():
 
 def create_response(
     status_code: int = 200,
-    error_message: str = None,
+    error_message: str | None = None,
 ) -> JSONResponse:
     if status_code != 200:
         return JSONResponse(
-            status_code,
+            status_code=status_code,
             content={"message": error_message},
         )
-    return JSONResponse(status_code)
+    return JSONResponse(
+        status_code=status_code,
+        content={"status": "success"}
+    )
