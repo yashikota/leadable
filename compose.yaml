@@ -11,14 +11,14 @@ services:
         condition: service_healthy
       ollama:
         condition: service_healthy
-      rabbitmq:
+      redis:
         condition: service_healthy
     environment:
       - TZ=Asia/Tokyo
       - SERVER_ADDRESS=${SERVER_ADDRESS}
       - MINIO_SECRET_KEY=${MINIO_PASSWORD}
       - MONGO_INITDB_ROOT_PASSWORD=example
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
     ports:
       - '8866:8000'
@@ -29,14 +29,6 @@ services:
       start_period: 10s
       test: curl -f http://localhost:8000/health/backend || exit 1
       timeout: 30s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - capabilities:
-                - gpu
-              count: 1
-              driver: nvidia
     develop:
       watch:
         - action: sync
@@ -210,27 +202,39 @@ services:
     environment:
       - TZ=Asia/Tokyo
     restart: always
-  rabbitmq:
-    image: rabbitmq:4.0.7-management-alpine
-    container_name: rabbitmq
+  redis:
+    image: redis:8.0.2-alpine
+    container_name: redis
     volumes:
-      - source: rabbitmq-data
-        target: /var/lib/rabbitmq
+      - source: redis-data
+        target: /data
         type: volume
-      - source: .rabbitmq-log
-        target: /var/log/rabbitmq
-        type: bind
     environment:
-      - RABBITMQ_DEFAULT_USER=root
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - TZ=Asia/Tokyo
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command: redis-server --appendonly yes --requirepass ${REDIS_PASSWORD}
     ports:
-      - '15672:15672'
+      - '6379:6379'
     restart: always
     healthcheck:
-      interval: 30s
+      interval: 5s
       retries: 3
-      test: rabbitmqctl status
-      timeout: 30s
+      test: redis-cli ping
+      timeout: 5s
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: redis-commander
+    depends_on:
+      redis:
+        condition: service_healthy
+    environment:
+      - TZ=Asia/Tokyo
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    ports:
+      - '8782:8081'
+    restart: always
   worker:
     build:
       context: backend
@@ -239,14 +243,16 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      redis:
+        condition: service_healthy
     environment:
       - PYTHONPATH=./src
       - TZ=Asia/Tokyo
       - SERVER_ADDRESS=${SERVER_ADDRESS}
       - MINIO_SECRET_KEY=${MINIO_PASSWORD}
       - MONGO_INITDB_ROOT_PASSWORD=example
-      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
-    command: python /app/src/service/worker.py
+      - REDIS_PASSWORD=${REDIS_PASSWORD}
+    command: celery -A service.mq.celery_app worker --loglevel=info
     working_dir: /app
     restart: always
 volumes:
@@ -256,4 +262,4 @@ volumes:
   ollama:
   open-webui:
   qdrant-data:
-  rabbitmq-data:
+  redis-data:

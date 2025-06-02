@@ -1,11 +1,10 @@
-import asyncio
 import json
 import os
 from enum import Enum
 
-import pika
+import redis
 from bson import ObjectId
-from pika.adapters.asyncio_connection import AsyncioConnection
+from celery import Celery
 
 from service.log import logger
 
@@ -18,12 +17,11 @@ class MongoJSONEncoder(json.JSONEncoder):
         return super().default(obj)
 
 
-# RabbitMQ configuration
-RABBITMQ_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-RABBITMQ_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
-RABBITMQ_USER = os.getenv("RABBITMQ_USER", "root")
-RABBITMQ_PASS = os.getenv("RABBITMQ_DEFAULT_PASS")
-RABBITMQ_VHOST = os.getenv("RABBITMQ_VHOST", "/")
+# Redis configuration
+REDIS_HOST = os.getenv("REDIS_HOST", "redis")
+REDIS_PORT = int(os.getenv("REDIS_PORT", "6379"))
+REDIS_DB = int(os.getenv("REDIS_DB", "0"))
+REDIS_PASSWORD = os.getenv("REDIS_PASSWORD", None)
 
 # Queue names
 TRANSLATION_QUEUE = "translation_requests"
@@ -37,62 +35,54 @@ class TaskStatus(Enum):
     FAILED = "failed"
 
 
-def get_rabbitmq_connection_params() -> pika.ConnectionParameters:
-    credentials = pika.PlainCredentials(RABBITMQ_USER, RABBITMQ_PASS)
-    return pika.ConnectionParameters(
-        host=RABBITMQ_HOST,
-        port=RABBITMQ_PORT,
-        virtual_host=RABBITMQ_VHOST,
-        credentials=credentials,
-        heartbeat=600,
-        blocked_connection_timeout=300,
+# Celery configuration
+def get_celery_app():
+    redis_url = f"redis://{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+    if REDIS_PASSWORD:
+        redis_url = f"redis://:{REDIS_PASSWORD}@{REDIS_HOST}:{REDIS_PORT}/{REDIS_DB}"
+
+    app = Celery(
+        "leadable",
+        broker=redis_url,
+        backend=redis_url,
     )
 
-
-def get_rabbitmq_client():
-    return pika.BlockingConnection(get_rabbitmq_connection_params())
-
-
-async def get_rabbitmq_connection():
-    future = asyncio.Future()
-
-    def on_open(connection):
-        if not future.done():
-            future.set_result(connection)
-
-    def on_error(connection, error):
-        if not future.done():
-            future.set_exception(Exception(f"Failed to connect to RabbitMQ: {error}"))
-
-    AsyncioConnection(
-        get_rabbitmq_connection_params(),
-        on_open_callback=on_open,
-        on_open_error_callback=on_error,
+    app.conf.update(
+        task_serializer="json",
+        accept_content=["json"],
+        result_serializer="json",
+        timezone="Asia/Tokyo",
+        enable_utc=True,
+        task_acks_late=True,
+        task_reject_on_worker_lost=True,
+        worker_prefetch_multiplier=1,
     )
 
-    return await future
+    return app
 
 
-def ensure_queue_exists(channel, queue_name: str) -> None:
-    channel.queue_declare(queue=queue_name, durable=True)
+celery_app = get_celery_app()
+
+
+def get_redis_client():
+    return redis.Redis(
+        host=REDIS_HOST,
+        port=REDIS_PORT,
+        db=REDIS_DB,
+        password=REDIS_PASSWORD,
+        decode_responses=True,
+    )
 
 
 async def publish_task(task_data):
     try:
-        connection = get_rabbitmq_client()
-        channel = connection.channel()
-        ensure_queue_exists(channel, TRANSLATION_QUEUE)
-
-        channel.basic_publish(
-            exchange="",
-            routing_key=TRANSLATION_QUEUE,
-            body=json.dumps(task_data, cls=MongoJSONEncoder),
-            properties=pika.BasicProperties(
-                delivery_mode=2,
-                content_type="application/json",
-            ),
+        # Use celery to publish task
+        celery_app.send_task(
+            "worker.process_translation_task",
+            args=[task_data],
+            queue=TRANSLATION_QUEUE,
         )
-        connection.close()
+
         logger.info(f"Task {task_data.get('task_id')} published to queue")
         return True
     except Exception as e:
@@ -109,22 +99,11 @@ async def publish_task_update(task_id, status, message=None):
         if message:
             update_data["message"] = message
 
-        connection = get_rabbitmq_client()
-        channel = connection.channel()
+        # Publish update to Redis
+        redis_client = get_redis_client()
+        channel = TASK_UPDATE_QUEUE
+        redis_client.publish(channel, json.dumps(update_data, cls=MongoJSONEncoder))
 
-        ensure_queue_exists(channel, TASK_UPDATE_QUEUE)
-
-        channel.basic_publish(
-            exchange="",
-            routing_key=TASK_UPDATE_QUEUE,
-            body=json.dumps(update_data, cls=MongoJSONEncoder),
-            properties=pika.BasicProperties(
-                delivery_mode=2,
-                content_type="application/json",
-            ),
-        )
-
-        connection.close()
         logger.info(f"Task update published for {task_id}: {status}")
         return True
     except Exception as e:
@@ -134,13 +113,10 @@ async def publish_task_update(task_id, status, message=None):
 
 async def initialize_mq() -> bool:
     try:
-        connection = get_rabbitmq_client()
-        channel = connection.channel()
+        # Check Redis connection
+        redis_client = get_redis_client()
+        redis_client.ping()
 
-        ensure_queue_exists(channel, TRANSLATION_QUEUE)
-        ensure_queue_exists(channel, TASK_UPDATE_QUEUE)
-
-        connection.close()
         logger.info("Translation service initialized successfully")
         return True
     except Exception as e:
